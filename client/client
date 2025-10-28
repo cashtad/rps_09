@@ -1,0 +1,14 @@
+#!/bin/bash
+
+JAR_PATH="target/client-1.0-SNAPSHOT.jar"
+
+if [ -f "$JAR_PATH" ]; then
+    echo "JAR file exists. Running 'mvn javafx:run'..."
+    mvn javafx:run
+else
+    echo "JAR file not found. Building project first..."
+    mvn clean package
+    echo "Build finished. Running 'mvn javafx:run'..."
+    mvn javafx:run
+fi
+
