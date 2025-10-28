@@ -1,5 +1,7 @@
 com/rps/network/NetworkManager.class
+com/rps/network/ServerEvent.class
 com/rps/network/ProtocolHandler.class
+com/rps/network/EventBus.class
 com/rps/MainApp.class
 com/rps/GameRoom.class
 com/rps/PlayerProfile$PlayerStatus.class

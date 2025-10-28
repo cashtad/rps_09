@@ -1,76 +1,80 @@
 package com.rps.network;
 
-import javafx.application.Platform;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 public class ProtocolHandler {
     private final NetworkManager net;
+    private final EventBus eventBus;
     private String token;
-    private Consumer<String> uiUpdater; // updates UI
-    private Consumer<String> onWelcome;          // вызывается при WELCOME
-    private Consumer<List<String>> onRoomList;   // вызывается при ROOM_LIST/ROOM
-    private Consumer<String> onRoomJoined;
+
+    // Временные данные для сбора списка комнат
     private final List<String> tempRooms = new ArrayList<>();
     private int expectedRooms = 0;
 
-
-    public ProtocolHandler(NetworkManager net) {
+    public ProtocolHandler(NetworkManager net, EventBus eventBus) {
         this.net = net;
+        this.eventBus = eventBus;
         this.net.setOnMessageReceived(this::handleMessage);
+        setupInternalHandlers();
     }
 
-    public void setUiUpdater(Consumer<String> uiUpdater) {
-        this.uiUpdater = uiUpdater;
+    /**
+     * Настраиваем внутренние обработчики для команд,
+     * требующих промежуточной логики (например, сбор списка комнат)
+     */
+    private void setupInternalHandlers() {
+        // Обработка ROOM_LIST - начало сбора комнат
+        eventBus.subscribe("ROOM_LIST", event -> {
+            expectedRooms = Integer.parseInt(event.getPart(1));
+            tempRooms.clear();
+
+            // Если комнат 0, сразу публикуем событие с пустым списком
+            if (expectedRooms == 0) {
+                eventBus.publish(new ServerEvent("ROOMS_LOADED",
+                        new String[]{"ROOMS_LOADED"}, "ROOMS_LOADED"));
+            }
+        });
+
+        // Обработка ROOM - добавление комнаты в список
+        eventBus.subscribe("ROOM", event -> {
+            tempRooms.add(event.getFullMessage().substring(5));
+
+            // Когда собрали все комнаты, публикуем событие
+            if (tempRooms.size() == expectedRooms) {
+                // Создаем специальное событие с полным списком комнат
+                String roomsData = String.join("|", tempRooms);
+                eventBus.publish(new ServerEvent("ROOMS_LOADED",
+                        new String[]{"ROOMS_LOADED", roomsData}, roomsData));
+            }
+        });
+
+        // Обработка ROOM_CREATED - автоматический запрос списка комнат
+        eventBus.subscribe("ROOM_CREATED", event -> {
+            requestRooms();
+        });
     }
 
+    /**
+     * Основной обработчик входящих сообщений
+     */
     private void handleMessage(String msg) {
         System.out.println("SERVER: " + msg);
-        String[] parts = msg.split(" ");
-        String cmd = parts[0];
 
-        switch (cmd) {
-            case "WELCOME" -> {
-                token = parts[1];
-                if (onWelcome != null)
-                    Platform.runLater(() -> onWelcome.accept(parts[1]));
-            }
-            case "ROOM_LIST" -> {
-                expectedRooms = Integer.parseInt(parts[1]);
-                tempRooms.clear();
-                if (expectedRooms == 0 && onRoomList != null) {
-                    Platform.runLater(() -> onRoomList.accept(tempRooms));
-                }
-            }
-            case "ROOM" -> {
-                tempRooms.add(msg.substring(5));
-                if (tempRooms.size() == expectedRooms && onRoomList != null) {
-                    Platform.runLater(() -> onRoomList.accept(new ArrayList<>(tempRooms)));
-                }
-            }
-            case "ROOM_CREATED" -> {
-                requestRooms();
-            }
-            case "ROOM_JOINED" -> {
-                int room_id = Integer.parseInt(parts[1]);
-                if (onRoomJoined != null) {
-                    Platform.runLater(() -> onRoomJoined.accept(parts[1]));
-                }
-            }
-            case "GAME_START" -> updateUi("Game started!");
-            case "ROUND_START" -> updateUi("Round " + parts[1] + " started!");
-            case "ROUND_RESULT" -> updateUi("Round result: " + msg);
-            case "GAME_END" -> updateUi("Winner: " + parts[1]);
-            case "ERR" -> updateUi("Error " + parts[1] + ": " + parts[2]);
-            default -> updateUi("Server: " + msg);
+        String[] parts = msg.split(" ", 2); // Разделяем только на команду и остальное
+        String command = parts[0];
+
+        // Парсим для детального доступа
+        String[] allParts = msg.split(" ");
+
+        // Создаем событие и публикуем в шину
+        ServerEvent event = new ServerEvent(command, allParts, msg);
+        eventBus.publish(event);
+
+        // Сохраняем токен при WELCOME
+        if ("WELCOME".equals(command) && allParts.length > 1) {
+            token = allParts[1];
         }
-    }
-
-    private void updateUi(String text) {
-        if (uiUpdater != null)
-            Platform.runLater(() -> uiUpdater.accept(text));
     }
 
     // =================== Client Commands ===================
@@ -99,15 +103,15 @@ public class ProtocolHandler {
         net.send("MOVE " + move);
     }
 
-    public void setOnWelcome(Consumer<String> handler) {
-        this.onWelcome = handler;
+    public void leaveRoom() {
+        net.send("LEAVE");
     }
 
-    public void setOnRoomList(Consumer<List<String>> handler) {
-        this.onRoomList = handler;
+    public String getToken() {
+        return token;
     }
 
-    public void setOnRoomJoined(Consumer<String> handler) {
-        this.onRoomJoined = handler;
+    public EventBus getEventBus() {
+        return eventBus;
     }
 }

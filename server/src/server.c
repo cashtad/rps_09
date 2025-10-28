@@ -90,11 +90,9 @@ static room_t* find_room_by_id(int id) {
     return NULL;
 }
 
-static room_t* find_room_by_player_id(int id) {
+static room_t* find_room_by_player_fd(int fd) {
     for (int i=0; i < MAX_ROOMS; i++) {
-        for (int j=0; j < 2; j++) {
-            if (rooms[i].players[j] == id) return &rooms[i];
-        }
+        if (rooms[i].player1->fd == fd || rooms[i].player2->fd == fd) return &rooms[i];
     }
     return NULL;
 }
@@ -108,13 +106,12 @@ static client_t* find_client_by_fd(int fd) {
 
 /* create room */
 static int create_room(const char *name) {
-    pthread_mutex_lock(&global_lock);
     for (int i=0;i<MAX_ROOMS;i++) {
         if (rooms[i].id == 0) {
             rooms[i].id = next_room_id++;
             strncpy(rooms[i].name, name, ROOM_NAME_MAX);
             rooms[i].name[ROOM_NAME_MAX] = '\0';
-            rooms[i].players[0] = rooms[i].players[1] = -1;
+            rooms[i].player1 = rooms[i].player2 = NULL;
             rooms[i].player_count = 0;
             rooms[i].state = RM_OPEN;
             int id = rooms[i].id;
@@ -122,13 +119,20 @@ static int create_room(const char *name) {
             return id;
         }
     }
-    pthread_mutex_unlock(&global_lock);
     return -1;
+}
+
+static int send_welcome_message(client_t *c, char* nick) {
+    strncpy(c->nick, nick, NICK_MAX);
+    c->nick[NICK_MAX] = '\0';
+    gen_token(c->token, sizeof(c->token));
+    c->state = ST_AUTH;
+    send_line(c->fd, "WELCOME %s", c->token);
+    return 0;
 }
 
 /* list rooms: caller must hold no locks */
 static int send_room_list(int fd) {
-    pthread_mutex_lock(&global_lock);
     int count = 0;
     for (int i=0;i<MAX_ROOMS;i++) if (rooms[i].id != 0) count++;
     send_line(fd, "ROOM_LIST %d", count);
@@ -136,7 +140,33 @@ static int send_room_list(int fd) {
         if (rooms[i].id == 0) continue;
         send_line(fd, "ROOM %d %s %d/2 %s", rooms[i].id, rooms[i].name, rooms[i].player_count, get_room_state_name(rooms[i].state));
     }
-    pthread_mutex_unlock(&global_lock);
+    return 0;
+}
+
+static int send_broadcast(char* text) {
+
+    for (uint8_t i=0;i<MAX_CLIENTS;i++) {
+        if (clients[i] != NULL) {
+            send_line(clients[i]->fd, "%s", text);
+        }
+    }
+
+    return 0;
+}
+
+static int add_player_to_the_room(client_t *c, room_t* r) {
+    printf("%d %d", c->fd, r->id);
+    // add player
+    if (r-> player1 == NULL) {
+        r->player1 = c;
+    }
+    else r->player2 = c;
+    r->player_count++;
+    if (r->player_count == MAX_CLIENTS) r->state = RM_FULL;
+    c->room_id = r->id;
+    c->state = ST_IN_ROOM;
+    send_line(c->fd, "ROOM_JOINED %d", r->id);
+
     return 0;
 }
 
@@ -148,77 +178,107 @@ static void handle_line(client_t *c, char *line) {
     char *cmd = strtok(line, " ");
     if (!cmd) return;
     if (strcmp(cmd, "HELLO") == 0) {
-        char *nick = strtok(NULL, " ");
-        if (!nick) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_nick"); return; }
-        strncpy(c->nick, nick, NICK_MAX);
-        c->nick[NICK_MAX] = '\0';
-        gen_token(c->token, sizeof(c->token));
-        c->state = ST_AUTH;
-        send_line(c->fd, "WELCOME %s", c->token);
-        return;
-    } else if (strcmp(cmd, "LIST") == 0) {
-        if (c->state < ST_AUTH) { send_line(c->fd, "ERR 101 INVALID_STATE not_auth"); return; }
-        send_room_list(c->fd);
-        return;
-    } else if (strcmp(cmd, "CREATE") == 0) {
-        if (c->state < ST_AUTH) { send_line(c->fd, "ERR 101 INVALID_STATE"); return; }
-        char *rname = strtok(NULL, " ");
-        if (!rname) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_name"); return; }
-        int rid = create_room(rname);
-        if (rid < 0) { send_line(c->fd, "ERR 200 SERVER_FULL"); return; }
+        pthread_mutex_lock(&global_lock);
 
-        for (uint8_t i=0;i<MAX_CLIENTS;i++) {
-            if (clients[i] != NULL) {
-                send_line(clients[i]->fd, "ROOM_CREATED %d", rid);
-            }
-        }
-        return;
+        char *nick = strtok(NULL, " ");
+        if (!nick) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_nick"); pthread_mutex_unlock(&global_lock); return; }
+        send_welcome_message(c, nick);
+        pthread_mutex_unlock(&global_lock);
+
+    } else if (strcmp(cmd, "LIST") == 0) {
+        pthread_mutex_lock(&global_lock);
+
+        if (c->state != ST_AUTH) { send_line(c->fd, "ERR 101 INVALID_STATE not_auth"); pthread_mutex_unlock(&global_lock); return; }
+        send_room_list(c->fd);
+        pthread_mutex_unlock(&global_lock);
+
+    } else if (strcmp(cmd, "CREATE") == 0) {
+        pthread_mutex_lock(&global_lock);
+        if (c->state != ST_AUTH) { send_line(c->fd, "ERR 101 INVALID_STATE"); pthread_mutex_unlock(&global_lock); return; }
+        char *rname = strtok(NULL, " ");
+        if (!rname) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_name"); pthread_mutex_unlock(&global_lock); return; }
+        int rid = create_room(rname);
+        if (rid < 0) { send_line(c->fd, "ERR 200 SERVER_FULL"); pthread_mutex_unlock(&global_lock); return; }
+
+        char buf[LINE_BUF];
+        snprintf(buf, LINE_BUF, "ROOM_CREATED %d", rid);
+        send_broadcast(buf);
+        pthread_mutex_unlock(&global_lock);
+
     } else if (strcmp(cmd, "JOIN") == 0) {
+        if (c->state != ST_AUTH) {
+            send_line(c->fd, "ERR 101 INVALID_STATE");
+            return;
+        }
         char *idstr = strtok(NULL, " ");
         if (!idstr) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_id"); return; }
         int rid = atoi(idstr);
+
         pthread_mutex_lock(&global_lock);
+
         room_t *r = find_room_by_id(rid);
         if (!r) {
             pthread_mutex_unlock(&global_lock);
             send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
             return;
         }
-        if (r->player_count >= 2) {
+
+        if (r->state != RM_OPEN) {
             pthread_mutex_unlock(&global_lock);
-            send_line(c->fd, "ERR 102 ROOM_FULL");
+            send_line(c->fd, "ERR 106 ROOM_WRONG_STATE");
             return;
         }
-        // add player
-        for (int i=0;i<2;i++) {
-            if (r->players[i] == -1) {
-                r->players[i] = c->fd;
-                r->player_count++;
-                if (r->player_count >= MAX_CLIENTS) {r->state = RM_FULL; return;}
-                break;
-            }
+
+        add_player_to_the_room(c,r);
+
+        if (r->player_count == 1) pthread_mutex_unlock(&global_lock); return;
+
+        if (r->player1 != c) {send_line(r->player1->fd, "PLAYER_JOINED %s", c->nick);}
+        else {send_line(r->player2->fd, "PLAYER_JOINED %s", c->nick);}
+        pthread_mutex_unlock(&global_lock);
+
+
+    } else if (strcmp(cmd, "READY") == 0) {
+        pthread_mutex_lock(&global_lock);
+        c->state = ST_READY;
+        room_t *r = find_room_by_id(c->room_id);
+        if (r->player_count == 1) pthread_mutex_unlock(&global_lock); return;
+
+        client_t* opponent;
+        if (r->player1 != c) opponent = r->player1;
+        else opponent = r->player2;
+
+        if (opponent->state == ST_READY) {
+            r->state = RM_PLAYING;
+        } else {
+            send_line(opponent->fd, "PLAYER_READY %s", c->nick);
         }
-        c->room_id = r->id;
-        c->state = ST_IN_ROOM;
+        pthread_mutex_unlock(&global_lock);
+
+    } else if (strcmp(cmd, "UNREADY") == 0) {
+
+
+    } else if (strcmp(cmd, "LEAVE") == 0) {
+        pthread_mutex_lock(&global_lock);
+        room_t *r = find_room_by_id(c->room_id);
+        if (!r) {
+            pthread_mutex_unlock(&global_lock);
+            send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+            return;
+        }
+        // проверка на ошибки
+
+        for (int i = 0; i < 2; i++) {
+
+        }
+
+        // выход из комнаты, т.е из комнаты убрать игрока, из игрока убрать комнату
+        // поставить статус игроку
+        // отправить подтверждение игроку
+        // отправить оповещение второму игроку, если он есть в комнате
         pthread_mutex_unlock(&global_lock);
         send_line(c->fd, "ROOM_JOINED %d", r->id);
 
-        for (int i=0; i<2; i++) {
-            if (r->players[i] != -1 && r->players[i] != c->fd) {
-                send_line(r->players[i], "PLAYER_JOINED %s", c->nick);
-            }
-        }
-        return;
-    } else if (strcmp(cmd, "READY") == 0) {
-        c->state = ST_READY;
-        room_t *r = find_room_by_id(c->room_id);
-        client_t *c1 = find_client_by_fd(r->players[0]);
-        client_t *c2 = find_client_by_fd(r->players[1]);
-        if (c1 && c2 && c1->state == ST_READY && c2->state == ST_READY) {
-            send_line(c1->fd, "GAME_START");
-            send_line(c2->fd, "GAME_START");
-            r->state = RM_PLAYING;
-        }
     } else if (strcmp(cmd, "QUIT") == 0) {
         send_line(c->fd, "OK bye");
         // close handled by caller

@@ -59,20 +59,20 @@ public class NetworkManager {
     public void setOnMessageReceived(Consumer<String> handler) {
         this.onMessageReceived = handler;
     }
-
-    /** Optional: Send a message and wait synchronously for first response (useful for HELLO, CREATE, etc.) */
-    public String request(String message, int timeoutMs) {
-        Future<String> future = executor.submit(() -> {
-            synchronized (out) {
-                out.write(message + "\r\n");
-                out.flush();
-            }
-            return in.readLine();
-        });
-        try {
-            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            return null;
-        }
-    }
+//
+//    /** Optional: Send a message and wait synchronously for first response (useful for HELLO, CREATE, etc.) */
+//    public String request(String message, int timeoutMs) {
+//        Future<String> future = executor.submit(() -> {
+//            synchronized (out) {
+//                out.write(message + "\r\n");
+//                out.flush();
+//            }
+//            return in.readLine();
+//        });
+//        try {
+//            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+//        } catch (Exception e) {
+//            return null;
+//        }
+//    }
 }

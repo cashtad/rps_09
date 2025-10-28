@@ -1,7 +1,9 @@
 package com.rps;
 
+import com.rps.network.EventBus;
 import com.rps.network.NetworkManager;
 import com.rps.network.ProtocolHandler;
+import com.rps.network.ServerEvent;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -19,6 +21,7 @@ public class MainApp extends Application {
 
     private NetworkManager networkManager;
     private ProtocolHandler protocolHandler;
+    private EventBus eventBus;
 
     private Stage primaryStage;
     private Label statusLabel;
@@ -29,8 +32,14 @@ public class MainApp extends Application {
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
+
+        // Инициализируем компоненты
         networkManager = new NetworkManager();
-        protocolHandler = new ProtocolHandler(networkManager);
+        eventBus = new EventBus();
+        protocolHandler = new ProtocolHandler(networkManager, eventBus);
+
+        // Настраиваем подписки на события ПЕРЕД показом UI
+        setupEventHandlers();
 
         // ==================== UI SETUP ====================
         VBox loginLayout = new VBox(10);
@@ -45,7 +54,7 @@ public class MainApp extends Application {
         statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
 
         listRoomsButton = new Button("Список комнат");
-        listRoomsButton.setDisable(true); // изначально неактивна
+        listRoomsButton.setDisable(true);
 
         loginLayout.getChildren().addAll(nameField, connectButton, statusLabel, listRoomsButton);
 
@@ -54,46 +63,71 @@ public class MainApp extends Application {
         stage.setScene(loginScene);
         stage.show();
 
-        // ==================== PROTOCOL HANDLER ====================
-        protocolHandler.setOnWelcome(token -> {
-            // Показываем зелёную надпись и активируем кнопку
+        // ==================== BUTTON ACTIONS ====================
+        connectButton.setOnAction(e -> {
+            connectToServer();
+        });
+        listRoomsButton.setOnAction(e -> protocolHandler.requestRooms());
+    }
+
+    /**
+     * Настройка всех обработчиков событий от сервера
+     */
+    private void setupEventHandlers() {
+        // ========== Логирование всех событий (опционально) ==========
+        eventBus.subscribeAll(event -> {
+//            System.out.println("📨 Event: " + event.getCommand());
+        });
+
+        // ========== WELCOME - успешное подключение ==========
+        eventBus.subscribe("WELCOME", event -> {
+            String token = event.getPart(1);
             playerProfile = new PlayerProfile(nameField.getText());
             playerProfile.setToken(token);
             playerProfile.setStatus(PlayerProfile.PlayerStatus.CONNECTED);
+
             statusLabel.setText("Подключено как " + token);
             listRoomsButton.setDisable(false);
         });
 
-        protocolHandler.setOnRoomList(roomList -> {
-            // Открываем новую сцену со списком комнат
-            Platform.runLater(() -> showRoomsScene(roomList));
+        // ========== ROOMS_LOADED - список комнат загружен ==========
+        eventBus.subscribe("ROOMS_LOADED", event -> {
+            String roomsData = event.getPart(1);
+            List<String> roomList = roomsData != null && !roomsData.isEmpty()
+                    ? List.of(roomsData.split("\\|"))
+                    : new ArrayList<>();
+            showRoomsScene(roomList);
         });
 
-        protocolHandler.setOnRoomJoined(roomId -> {
-            // Открываем новую сцену со списком комнат
+        // ========== ROOM_JOINED - успешное подключение к комнате ==========
+        eventBus.subscribe("ROOM_JOINED", event -> {
+            String roomId = event.getPart(1);
             playerProfile.setStatus(PlayerProfile.PlayerStatus.IN_LOBBY);
-            Platform.runLater(() -> showLobbyScene(roomId, playerProfile.getName()));
+            showLobbyScene(roomId, playerProfile.getName());
         });
 
-        // ==================== BUTTON ACTIONS ====================
-        connectButton.setOnAction(e -> connectToServer());
-        listRoomsButton.setOnAction(e -> requestRoomList());
+        // ========== Обработка ошибок ==========
+        eventBus.subscribe("ERR", event -> {
+            String errorCode = event.getPart(1);
+            String errorMsg = event.getPartsCount() > 2 ? event.getPart(2) : "Unknown error";
+            showAlert("Ошибка", "Error " + errorCode + ": " + errorMsg);
+        });
     }
 
     private void connectToServer() {
         String nickname = nameField.getText().trim();
-        if (nickname.isEmpty()) return;
+        if (nickname.isEmpty()) {
+            showAlert("Ошибка", "Введите имя!");
+            return;
+        }
 
         try {
-            networkManager.connect("0.0.0.0", 2500); // укажи свой хост и порт
+            networkManager.connect("0.0.0.0", 2500);
             protocolHandler.sendHello(nickname);
         } catch (Exception ex) {
+            showAlert("Ошибка подключения", ex.getMessage());
             ex.printStackTrace();
         }
-    }
-
-    private void requestRoomList() {
-        protocolHandler.requestRooms();
     }
 
     private void showRoomsScene(List<String> roomsRaw) {
@@ -101,19 +135,24 @@ public class MainApp extends Application {
         roomsLayout.setStyle("-fx-padding: 20;");
 
         Label title = new Label("Доступные комнаты:");
-        // Преобразуем строки ROOM <id> <name> в RoomItem
+
+        // Преобразуем строки в объекты GameRoom
         List<GameRoom> roomItems = new ArrayList<>();
         for (String raw : roomsRaw) {
             String[] parts = raw.split(" ");
             if (parts.length >= 4) {
-                roomItems.add(new GameRoom(Integer.parseInt(parts[0]), parts[1], Integer.parseInt(parts[2].split("/")[0]), parts[3])); // int id, String name, int currentPlayers, String status
+                roomItems.add(new GameRoom(
+                        Integer.parseInt(parts[0]),
+                        parts[1],
+                        Integer.parseInt(parts[2].split("/")[0]),
+                        parts[3]
+                ));
             }
         }
 
         ListView<GameRoom> listView = new ListView<>();
         listView.getItems().addAll(roomItems);
 
-        // Используем кастомные ячейки
         listView.setCellFactory(lv -> new ListCell<>() {
             private final Button joinButton = new Button("Подключиться");
             private final HBox hbox = new HBox(10);
@@ -122,8 +161,7 @@ public class MainApp extends Application {
                 joinButton.setOnAction(e -> {
                     GameRoom item = getItem();
                     if (item != null) {
-                        protocolHandler.joinRoom(String.valueOf(item.id)); // JOIN <room_id>
-
+                        protocolHandler.joinRoom(String.valueOf(item.getId()));
                     }
                 });
             }
@@ -142,18 +180,20 @@ public class MainApp extends Application {
             }
         });
 
-        // Кнопка создания новой комнаты
         Button createRoomButton = new Button("Создать комнату");
         createRoomButton.setOnAction(e -> showCreateRoomDialog());
 
-        roomsLayout.getChildren().addAll(title, listView, createRoomButton);
+        Button refreshButton = new Button("Обновить");
+        refreshButton.setOnAction(e -> protocolHandler.requestRooms());
+
+        HBox buttons = new HBox(10, createRoomButton, refreshButton);
+        roomsLayout.getChildren().addAll(title, listView, buttons);
 
         Scene roomsScene = new Scene(roomsLayout, 400, 400);
         primaryStage.setScene(roomsScene);
     }
 
     private void showCreateRoomDialog() {
-        // Новое окно (Stage) как диалог
         Stage dialog = new Stage();
         dialog.initOwner(primaryStage);
         dialog.setTitle("Создать комнату");
@@ -164,22 +204,19 @@ public class MainApp extends Application {
         Label prompt = new Label("Введите название комнаты:");
         TextField roomNameField = new TextField();
 
-        // Кнопки
         Button cancelButton = new Button("Отмена");
         Button confirmButton = new Button("Подтвердить");
 
-        cancelButton.setOnAction(e -> dialog.close()); // просто закрываем окно
+        cancelButton.setOnAction(e -> dialog.close());
         confirmButton.setOnAction(e -> {
             String roomName = roomNameField.getText().trim();
             if (!roomName.isEmpty()) {
-                protocolHandler.createRoom(roomName); // отправляем CREATE <room_name>
+                protocolHandler.createRoom(roomName);
                 dialog.close();
             }
         });
 
-        // Размещаем кнопки горизонтально
         HBox buttons = new HBox(10, cancelButton, confirmButton);
-
         dialogLayout.getChildren().addAll(prompt, roomNameField, buttons);
 
         Scene dialogScene = new Scene(dialogLayout, 250, 150);
@@ -194,8 +231,8 @@ public class MainApp extends Application {
         // ======= Кнопка назад =======
         Button backButton = new Button("Назад");
         backButton.setOnAction(e -> {
-            // Возврат к сцене со списком комнат
-            protocolHandler.requestRooms(); // обновим список комнат
+            protocolHandler.leaveRoom();
+            protocolHandler.requestRooms();
         });
         lobbyLayout.setTop(backButton);
         BorderPane.setMargin(backButton, new Insets(0, 0, 10, 0));
@@ -206,7 +243,6 @@ public class MainApp extends Application {
         Label playerLabel = new Label("Вы: " + playerName);
         Label playerStatusLabel = new Label("Статус: Не готов");
         Button readyButton = new Button("Готов");
-        readyButton.setDisable(true); // пока неактивна
         playerBox.getChildren().addAll(playerLabel, playerStatusLabel, readyButton);
 
         // ======= Справа: противник =======
@@ -222,54 +258,67 @@ public class MainApp extends Application {
         Scene lobbyScene = new Scene(lobbyLayout, 500, 300);
         primaryStage.setScene(lobbyScene);
 
-        // ======= Пример: добавляем обработку сообщений от сервера =======
-        protocolHandler.setUiUpdater(msg -> {
-            String[] parts = msg.split(" ");
-            String cmd = parts[1];
+        // ========== Подписки на события лобби ==========
 
-            switch (cmd) {
-                case "PLAYER_JOINED" -> {
-                    String opponentName = parts[2];
-                    opponentLabel.setText("Противник: " + opponentName);
-                    opponentStatusLabel.setText("Статус: Не готов");
-                }
-                case "PLAYER_READY" -> {
-                    String readyPlayer = parts[2];
-                    if (!readyPlayer.equals(playerName)) {
-                        opponentStatusLabel.setText("Статус: Готов");
-                    } else {
-                        playerStatusLabel.setText("Статус: Готов");
-                        readyButton.setDisable(true);
-                    }
-                }
-                case "PLAYER_UNREADY" -> {
-                    String unreadyPlayer = parts[2];
-                    if (!unreadyPlayer.equals(playerName)) {
-                        opponentStatusLabel.setText("Статус: Не готов");
-                    } else {
-                        playerStatusLabel.setText("Статус: Не готов");
-                        readyButton.setDisable(false);
-                    }
-                }
-                case "GAME_START" -> {
-                    // Здесь можно открывать сцену игры
-                }
+        // Присоединился игрок
+        eventBus.subscribe("PLAYER_JOINED", event -> {
+            String opponentName = event.getPart(1);
+            opponentLabel.setText("Противник: " + opponentName);
+            opponentStatusLabel.setText("Статус: Не готов");
+        });
+
+        // Игрок готов
+        eventBus.subscribe("PLAYER_READY", event -> {
+            String readyPlayer = event.getPart(1);
+            if (!readyPlayer.equals(playerName)) {
+                opponentStatusLabel.setText("Статус: Готов");
+            } else {
+                playerStatusLabel.setText("Статус: Готов");
+                readyButton.setDisable(true);
             }
         });
 
+        // Игрок не готов
+        eventBus.subscribe("PLAYER_UNREADY", event -> {
+            String unreadyPlayer = event.getPart(1);
+            if (!unreadyPlayer.equals(playerName)) {
+                opponentStatusLabel.setText("Статус: Не готов");
+            } else {
+                playerStatusLabel.setText("Статус: Не готов");
+                readyButton.setDisable(false);
+            }
+        });
+
+        // Игрок покинул комнату
+        eventBus.subscribe("PLAYER_LEFT", event -> {
+            opponentLabel.setText("Противник: -");
+            opponentStatusLabel.setText("Статус: -");
+        });
+
+        // Начало игры
+        eventBus.subscribe("GAME_START", event -> {
+            showAlert("Игра началась!", "Удачи!");
+            // TODO: showGameScene();
+        });
+
         // ======= Кнопка готов =======
-        readyButton.setDisable(false); // активируем
         readyButton.setOnAction(e -> {
-            protocolHandler.markReady(); // отправляем READY на сервер
-            readyButton.setDisable(true);
-            playerStatusLabel.setText("Статус: Готов");
+            protocolHandler.markReady();
         });
     }
 
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
 
     @Override
     public void stop() throws Exception {
         super.stop();
+        eventBus.clear();
         networkManager.disconnect();
     }
 

@@ -27,13 +27,7 @@
 typedef enum { ST_CONNECTED, ST_AUTH, ST_IN_LOBBY, ST_IN_ROOM, ST_READY, ST_PLAYING } client_state_t;
 typedef enum { RM_OPEN, RM_FULL, RM_PLAYING, RM_PAUSED } room_state_t;
 
-typedef struct {
-    int id;
-    char name[ROOM_NAME_MAX+1];
-    int players[2]; // client_fds (or -1)
-    int player_count;
-    room_state_t state;
-} room_t;
+
 
 typedef struct {
     int fd; //file descriptor
@@ -44,5 +38,14 @@ typedef struct {
     time_t last_seen; //time of last activity
     pthread_t thread;
 } client_t;
+
+typedef struct {
+    int id;
+    char name[ROOM_NAME_MAX+1];
+    client_t* player1;
+    client_t* player2;
+    int player_count;
+    room_state_t state;
+} room_t;
 
 #endif //RPS_09_SERVER_H
