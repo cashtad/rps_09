@@ -156,14 +156,13 @@ static int send_broadcast(char* text) {
 }
 
 static int add_player_to_the_room(client_t *c, room_t* r) {
-    printf("%d %d", c->fd, r->id);
     // add player
     if (r-> player1 == NULL) {
         r->player1 = c;
     }
     else r->player2 = c;
     r->player_count++;
-    if (r->player_count == MAX_CLIENTS) r->state = RM_FULL;
+    if (r->player_count == 2) r->state = RM_FULL;
     c->room_id = r->id;
     c->state = ST_IN_LOBBY;
     send_line(c->fd, "ROOM_JOINED %d", r->id);
@@ -232,7 +231,10 @@ static void handle_line(client_t *c, char *line) {
 
         add_player_to_the_room(c,r);
 
-        if (r->player_count == 1) pthread_mutex_unlock(&global_lock); return;
+        if (r->player_count == 1) {
+            pthread_mutex_unlock(&global_lock);
+            return;
+        }
 
         if (r->player1 != c) {send_line(r->player1->fd, "PLAYER_JOINED %s", c->nick);}
         else {send_line(r->player2->fd, "PLAYER_JOINED %s", c->nick);}
@@ -242,8 +244,9 @@ static void handle_line(client_t *c, char *line) {
     } else if (strcmp(cmd, "READY") == 0) {
         pthread_mutex_lock(&global_lock);
         c->state = ST_READY;
+        send_line(c->fd, "OK you_are_ready");
         room_t *r = find_room_by_id(c->room_id);
-        if (r->player_count == 1) pthread_mutex_unlock(&global_lock); return;
+        if (r->player_count == 1) { pthread_mutex_unlock(&global_lock); return; }
 
         client_t* opponent;
         if (r->player1 != c) opponent = r->player1;
@@ -251,9 +254,8 @@ static void handle_line(client_t *c, char *line) {
 
         if (opponent->state == ST_READY) {
             r->state = RM_PLAYING;
-        } else {
-            send_line(opponent->fd, "PLAYER_READY %s", c->nick);
         }
+        send_line(opponent->fd, "PLAYER_READY %s", c->nick);
         pthread_mutex_unlock(&global_lock);
 
     } else if (strcmp(cmd, "UNREADY") == 0) {
@@ -298,6 +300,8 @@ static void handle_line(client_t *c, char *line) {
         c->state = ST_AUTH;
         c->room_id = -1;
 
+
+        // отправить подтверждение игроку
         send_line(c->fd, "LEFT_ROOM %d", r->id);
 
 
@@ -305,7 +309,6 @@ static void handle_line(client_t *c, char *line) {
 
         pthread_mutex_unlock(&global_lock);
 
-        // отправить подтверждение игроку
 
 
     } else if (strcmp(cmd, "QUIT") == 0) {
