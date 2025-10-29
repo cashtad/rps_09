@@ -5,7 +5,7 @@
 // - implement HELLO, LIST, CREATE, JOIN (basic)
 // - thread-per-client model, global mutex for rooms/clients
 
-#define _GNU_SOURCE
+#define GNU_SOURCE
 
 #include "../include/server.h"
 
@@ -47,9 +47,10 @@ static int send_line(int fd, const char *fmt, ...) {
 }
 
 /* generate simple token */
-static void gen_token(char *out, size_t outlen) {
+static void gen_token(char *out) {
     const char *hex = "0123456789abcdef";
     srand((unsigned)time(NULL) ^ (uintptr_t)pthread_self());
+    uint8_t outlen= TOKEN_LEN;
     for (size_t i=0;i<30 && i+1<outlen;i++) out[i] = hex[rand() % 16];
     out[30 < outlen ? 30 : outlen-1] = '\0';
 }
@@ -68,7 +69,7 @@ static int register_client(client_t *c) {
     return -1;
 }
 
-static void unregister_client(client_t *c) {
+static void unregister_client(const client_t *c) {
     pthread_mutex_lock(&global_lock);
     for (int i=0;i<MAX_CLIENTS;i++) {
         if (clients[i] == c) {
@@ -90,14 +91,14 @@ static room_t* find_room_by_id(int id) {
     return NULL;
 }
 
-static room_t* find_room_by_player_fd(int fd) {
+static room_t* find_room_by_player_fd(const int fd) {
     for (int i=0; i < MAX_ROOMS; i++) {
         if (rooms[i].player1->fd == fd || rooms[i].player2->fd == fd) return &rooms[i];
     }
     return NULL;
 }
 
-static client_t* find_client_by_fd(int fd) {
+static client_t* find_client_by_fd(const int fd) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i] != NULL && clients[i]->fd == fd) return clients[i];
     }
@@ -122,10 +123,10 @@ static int create_room(const char *name) {
     return -1;
 }
 
-static int send_welcome_message(client_t *c, char* nick) {
+static int send_welcome_message(client_t *c, const char* nick) {
     strncpy(c->nick, nick, NICK_MAX);
     c->nick[NICK_MAX] = '\0';
-    gen_token(c->token, sizeof(c->token));
+    gen_token(c->token);
     c->state = ST_AUTH;
     send_line(c->fd, "WELCOME %s", c->token);
     return 0;
@@ -164,7 +165,7 @@ static int add_player_to_the_room(client_t *c, room_t* r) {
     r->player_count++;
     if (r->player_count == MAX_CLIENTS) r->state = RM_FULL;
     c->room_id = r->id;
-    c->state = ST_IN_ROOM;
+    c->state = ST_IN_LOBBY;
     send_line(c->fd, "ROOM_JOINED %d", r->id);
 
     return 0;
@@ -267,17 +268,45 @@ static void handle_line(client_t *c, char *line) {
             return;
         }
         // проверка на ошибки
+        if (r->state != RM_FULL || r->state != RM_OPEN) {
+            pthread_mutex_unlock(&global_lock);
+            send_line(c->fd, "ERR 101 INVALID_STATE cannot_leave_now");
+            return;
+        }
 
-        for (int i = 0; i < 2; i++) {
-
+        if (c->state != ST_IN_LOBBY) {
+            pthread_mutex_unlock(&global_lock);
+            send_line(c->fd, "ERR 101 INVALID_STATE cannot_leave_now");
+            return;
         }
 
         // выход из комнаты, т.е из комнаты убрать игрока, из игрока убрать комнату
+        if (r->player_count > 1) {
+            if (r->player1 == c) {
+                r->player1 = r->player2;
+                r->player2 = NULL;
+                // отправить оповещение второму игроку, если он есть в комнате
+                send_line(r->player1->fd, "PLAYER_LEFT %s", c->nick);
+            } else {
+                r->player2 = NULL;
+            }
+        }
+        r->player_count--;
+        r->state = RM_OPEN;
+
         // поставить статус игроку
-        // отправить подтверждение игроку
-        // отправить оповещение второму игроку, если он есть в комнате
+        c->state = ST_AUTH;
+        c->room_id = -1;
+
+        send_line(c->fd, "LEFT_ROOM %d", r->id);
+
+
+
+
         pthread_mutex_unlock(&global_lock);
-        send_line(c->fd, "ROOM_JOINED %d", r->id);
+
+        // отправить подтверждение игроку
+
 
     } else if (strcmp(cmd, "QUIT") == 0) {
         send_line(c->fd, "OK bye");
@@ -296,7 +325,6 @@ static void handle_line(client_t *c, char *line) {
 static void *client_worker(void *arg) {
     client_t *c = (client_t*)arg;
     char buf[LINE_BUF];
-    ssize_t n;
     FILE *f = fdopen(c->fd, "r+");
     if (!f) {
         perror("fdopen");
@@ -322,10 +350,9 @@ int main(int argc, char **argv) {
     const char *host = "0.0.0.0";
     const char *port = "2500";
     if (argc >= 2) port = argv[1];
-    int listen_fd;
     struct sockaddr_in servaddr;
 
-    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) { perror("socket"); exit(1); }
     int opt = 1;
     setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -357,7 +384,7 @@ int main(int argc, char **argv) {
         c->state = ST_CONNECTED;
         c->room_id = -1;
         c->last_seen = time(NULL);
-        gen_token(c->token, sizeof(c->token));
+        gen_token(c->token);
         if (register_client(c) != 0) {
             send_line(connfd, "ERR 200 SERVER_FULL");
             close(connfd);

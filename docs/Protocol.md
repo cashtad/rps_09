@@ -102,6 +102,8 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
 * `PLAYER_LEFT <nickname>`
 
+* `LEFT ROOM <room_id>`
+
 * `GAME_START`
 
 * `ROUND_START <round_number>`
