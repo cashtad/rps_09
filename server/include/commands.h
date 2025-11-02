@@ -1,0 +1,16 @@
+#ifndef RPS_09_COMMANDS_H
+#define RPS_09_COMMANDS_H
+
+#include "server.h"
+
+// Command handlers
+void handle_line(client_t *c, char *line);
+void handle_hello(client_t *c, char *args);
+void handle_list(client_t *c);
+void handle_create(client_t *c, char *args);
+void handle_join(client_t *c, char *args);
+void handle_ready(client_t *c);
+void handle_leave(client_t *c);
+
+#endif //RPS_09_COMMANDS_H
+
