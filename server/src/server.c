@@ -23,9 +23,20 @@ void *client_worker(void *arg) {
     }
     setvbuf(f, NULL, _IOLBF, 0);
 
+    time_t last_timeout_check = 0;  // добавить
+
     while (fgets(buf, sizeof(buf), f) != NULL) {
         c->last_seen = time(NULL);
         handle_line(c, buf);
+
+        // Проверка таймаутов раз в секунду
+        time_t now = time(NULL);
+        if (now - last_timeout_check >= 1) {
+            pthread_mutex_lock(&global_lock);
+            check_room_timeouts();
+            pthread_mutex_unlock(&global_lock);
+            last_timeout_check = now;
+        }
     }
 
     fprintf(stderr, "Client %s disconnected\n", c->nick);
@@ -95,5 +106,18 @@ int main(int argc, char **argv) {
             continue;
         }
         pthread_detach(c->thread);
+    }
+}
+void check_room_timeouts(void) {
+    time_t now = time(NULL);
+
+    for (int i = 0; i < MAX_ROOMS; i++) {
+        room_t *r = &rooms[i];
+
+        if (r->state == RM_PLAYING && r->awaiting_moves) {
+            if (now - r->round_start_time > 30) {  // таймаут 30 секунд
+                handle_round_timeout(r);
+            }
+        }
     }
 }

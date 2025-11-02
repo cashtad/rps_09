@@ -20,7 +20,7 @@ void handle_hello(client_t *c, char *args) {
     send_line(c->fd, "WELCOME %s", c->token);
 }
 
-void handle_list(client_t *c) {
+void handle_list(const client_t *c) {
     if (c->state != ST_AUTH) {
         send_line(c->fd, "ERR 101 INVALID_STATE not_auth");
         return;
@@ -92,6 +92,13 @@ void handle_ready(client_t *c) {
         c->state = ST_PLAYING;
         opponent->state = ST_PLAYING;
         r->state = RM_PLAYING;
+
+        // Инициализируем игру
+        r->round_number = 0;
+        r->score_p1 = 0;
+        r->score_p2 = 0;
+
+        start_next_round(r);  // запускаем первый раунд
     }
     send_line(opponent->fd, "PLAYER_READY %s", c->nick);
 }
@@ -116,6 +123,49 @@ void handle_leave(client_t *c) {
     remove_player_from_room(c, r);
     send_line(c->fd, "LEFT_ROOM %d", r->id);
 }
+
+void handle_move(client_t *c, char *args) {
+    if (c->state != ST_PLAYING) {
+        send_line(c->fd, "ERR 101 INVALID_STATE");
+        return;
+    }
+
+    room_t *r = find_room_by_id(c->room_id);
+    if (!r || !r->awaiting_moves) {
+        send_line(c->fd, "ERR 101 INVALID_STATE not_accepting_moves");
+        return;
+    }
+
+    char *move = strtok(args, " ");
+    if (!move || (move[0] != 'R' && move[0] != 'P' && move[0] != 'S')) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT invalid_move");
+        return;
+    }
+
+    // Сохраняем ход
+    if (r->player1 == c) {
+        if (r->move_p1 != '\0') {
+            send_line(c->fd, "ERR 101 INVALID_STATE move_already_sent");
+            return;
+        }
+        r->move_p1 = move[0];
+    } else {
+        if (r->move_p2 != '\0') {
+            send_line(c->fd, "ERR 101 INVALID_STATE move_already_sent");
+            return;
+        }
+        r->move_p2 = move[0];
+    }
+
+    send_line(c->fd, "MOVE_ACCEPTED");
+
+    // Проверяем, получены ли оба хода
+    if (r->move_p1 != '\0' && r->move_p2 != '\0') {
+        r->awaiting_moves = 0;
+        process_round_result(r);
+    }
+}
+
 
 void handle_line(client_t *c, char *line) {
     trim_crlf(line);
@@ -149,6 +199,10 @@ void handle_line(client_t *c, char *line) {
     } else if (strcmp(cmd, "LEAVE") == 0) {
         pthread_mutex_lock(&global_lock);
         handle_leave(c);
+        pthread_mutex_unlock(&global_lock);
+    } else if (strcmp(cmd, "MOVE") == 0) {
+        pthread_mutex_lock(&global_lock);
+        handle_move(c, args);
         pthread_mutex_unlock(&global_lock);
     } else if (strcmp(cmd, "QUIT") == 0) {
         send_line(c->fd, "OK bye");
