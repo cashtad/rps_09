@@ -16,7 +16,7 @@ static client_t *clients[MAX_CLIENTS];
 static room_t rooms[MAX_ROOMS];
 static int next_room_id = 1;
 
-const char* get_room_state_name(room_state_t room_state) {
+const char* get_room_state_name(const room_state_t room_state) {
     switch (room_state) {
         case RM_OPEN: return "OPEN";
         case RM_FULL: return "FULL";
@@ -49,7 +49,7 @@ static int send_line(int fd, const char *fmt, ...) {
 /* generate simple token */
 static void gen_token(char *out) {
     const char *hex = "0123456789abcdef";
-    srand((unsigned)time(NULL) ^ (uintptr_t)pthread_self());
+    srand((unsigned)time(NULL) ^ pthread_self());
     uint8_t outlen= TOKEN_LEN;
     for (size_t i=0;i<30 && i+1<outlen;i++) out[i] = hex[rand() % 16];
     out[30 < outlen ? 30 : outlen-1] = '\0';
@@ -84,7 +84,7 @@ static void unregister_client(const client_t *c) {
 // =================== FINDERS ===================
 
 /* find room by id */
-static room_t* find_room_by_id(int id) {
+static room_t* find_room_by_id(const int id) {
     for (int i=0;i<MAX_ROOMS;i++) {
         if (rooms[i].id == id) return &rooms[i];
     }
@@ -115,7 +115,7 @@ static int create_room(const char *name) {
             rooms[i].player1 = rooms[i].player2 = NULL;
             rooms[i].player_count = 0;
             rooms[i].state = RM_OPEN;
-            int id = rooms[i].id;
+            const int id = rooms[i].id;
             pthread_mutex_unlock(&global_lock);
             return id;
         }
@@ -133,7 +133,7 @@ static int send_welcome_message(client_t *c, const char* nick) {
 }
 
 /* list rooms: caller must hold no locks */
-static int send_room_list(int fd) {
+static int send_room_list(const int fd) {
     int count = 0;
     for (int i=0;i<MAX_ROOMS;i++) if (rooms[i].id != 0) count++;
     send_line(fd, "ROOM_LIST %d", count);
@@ -145,13 +145,11 @@ static int send_room_list(int fd) {
 }
 
 static int send_broadcast(char* text) {
-
     for (uint8_t i=0;i<MAX_CLIENTS;i++) {
         if (clients[i] != NULL) {
             send_line(clients[i]->fd, "%s", text);
         }
     }
-
     return 0;
 }
 
@@ -212,7 +210,7 @@ static void handle_line(client_t *c, char *line) {
         }
         char *idstr = strtok(NULL, " ");
         if (!idstr) { send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_id"); return; }
-        int rid = atoi(idstr);
+        const int rid = atoi(idstr);
 
         pthread_mutex_lock(&global_lock);
 
@@ -326,7 +324,7 @@ static void handle_line(client_t *c, char *line) {
 
 /* client thread */
 static void *client_worker(void *arg) {
-    client_t *c = (client_t*)arg;
+    client_t *c = arg;
     char buf[LINE_BUF];
     FILE *f = fdopen(c->fd, "r+");
     if (!f) {
