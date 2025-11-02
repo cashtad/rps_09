@@ -89,6 +89,8 @@ void handle_ready(client_t *c) {
     client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
 
     if (opponent->state == ST_READY) {
+        c->state = ST_PLAYING;
+        opponent->state = ST_PLAYING;
         r->state = RM_PLAYING;
     }
     send_line(opponent->fd, "PLAYER_READY %s", c->nick);
