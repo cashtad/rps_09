@@ -61,6 +61,10 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 * `READY`
 
     * mark ready in room. When both ready server sends `GAME_START`.
+    
+* `UNREADY`
+
+    * mark unready in room.
 
 * `MOVE <R|P|S>`
 
@@ -135,6 +139,7 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 * `103` AUTH_FAIL
 * `104` UNKNOWN_ROOM
 * `105` NOT_IN_ROOM
+* `106` ROOM_WRONG_STATE
 * `200` TOO_MANY_INVALID_MSGS
 
 ## State machines (ASCII)
