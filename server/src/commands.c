@@ -170,6 +170,27 @@ void handle_move(client_t *c, char *args) {
     }
 }
 
+void handle_get_opponent(client_t *c) {
+    if (c->state != ST_IN_LOBBY && c->state != ST_READY) {
+        send_line(c->fd, "ERR 101 INVALID_STATE not_in_lobby");
+        return;
+    }
+
+    room_t *r = find_room_by_id(c->room_id);
+    if (!r) {
+        send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+        return;
+    }
+
+    if (r->player_count == 1) {
+        send_line(c->fd, "OPPONENT_INFO NONE");
+        return;
+    }
+
+    client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
+    const char *status = (opponent->state == ST_READY) ? "READY" : "NOT_READY";
+    send_line(c->fd, "OPPONENT_INFO %s %s", opponent->nick, status);
+}
 
 void handle_line(client_t *c, char *line) {
     trim_crlf(line);
@@ -207,6 +228,10 @@ void handle_line(client_t *c, char *line) {
     } else if (strcmp(cmd, "MOVE") == 0) {
         pthread_mutex_lock(&global_lock);
         handle_move(c, args);
+        pthread_mutex_unlock(&global_lock);
+    } else if (strcmp(cmd, "GET_OPPONENT") == 0) {
+        pthread_mutex_lock(&global_lock);
+        handle_get_opponent(c);
         pthread_mutex_unlock(&global_lock);
     } else if (strcmp(cmd, "QUIT") == 0) {
         send_line(c->fd, "OK bye");

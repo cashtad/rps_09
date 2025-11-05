@@ -24,6 +24,7 @@ public class MainApp extends Application {
     private EventBus eventBus;
 
     private Stage primaryStage;
+    private Button connectButton;
     private Label statusLabel;
     private Button listRoomsButton;
     private TextField nameField;
@@ -48,7 +49,7 @@ public class MainApp extends Application {
         nameField = new TextField();
         nameField.setPromptText("Enter your name");
 
-        Button connectButton = new Button("Connect");
+        connectButton = new Button("Connect");
 
         statusLabel = new Label();
         statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
@@ -84,6 +85,7 @@ public class MainApp extends Application {
             playerProfile.setStatus(PlayerProfile.PlayerStatus.CONNECTED);
 
             statusLabel.setText("Connected as " + token);
+            connectButton.setDisable(true);
             listRoomsButton.setDisable(false);
         });
 
@@ -109,6 +111,85 @@ public class MainApp extends Application {
             String errorMsg = event.getPartsCount() > 2 ? event.getPart(2) : "Unknown error";
             showAlert("Error", "Error " + errorCode + ": " + errorMsg);
         });
+
+        // ========== События лобби (глобальные подписки) ==========
+
+        // Информация о противнике
+        eventBus.subscribe("OPPONENT_INFO", this::handleOpponentInfo);
+
+        // Присоединился игрок
+        eventBus.subscribe("PLAYER_JOINED", this::handlePlayerJoined);
+
+        // Игрок готов
+        eventBus.subscribe("PLAYER_READY", this::handlePlayerReady);
+
+        // Игрок не готов
+        eventBus.subscribe("PLAYER_UNREADY", this::handlePlayerUnready);
+
+        // Игрок покинул комнату
+        eventBus.subscribe("PLAYER_LEFT", this::handlePlayerLeft);
+
+        // Начало игры
+        eventBus.subscribe("GAME_START", event -> {
+            showAlert("Game started!", "Good luck!");
+            // TODO: showGameScene();
+        });
+    }
+
+    // ========== Обработчики событий лобби ==========
+
+    private Label opponentLabel;
+    private Label opponentStatusLabel;
+    private Label playerStatusLabel;
+    private Button readyButton;
+
+    private void handleOpponentInfo(ServerEvent event) {
+        String opponentName = event.getPart(1);
+        if (opponentLabel == null) return;
+
+        if ("NONE".equals(opponentName)) {
+            opponentLabel.setText("Enemy: -");
+            opponentStatusLabel.setText("Status: -");
+        } else {
+            String status = event.getPart(2);
+            opponentLabel.setText("Enemy: " + opponentName);
+            opponentStatusLabel.setText("Status: " + ("READY".equals(status) ? "Ready" : "Not ready"));
+        }
+    }
+
+    private void handlePlayerJoined(ServerEvent event) {
+        String opponentName = event.getPart(1);
+        if (opponentLabel != null && !opponentName.equals(playerProfile.getName())) {
+            opponentLabel.setText("Enemy: " + opponentName);
+            opponentStatusLabel.setText("Status: Not ready");
+        }
+    }
+
+    private void handlePlayerReady(ServerEvent event) {
+        String readyPlayer = event.getPart(1);
+        if (readyPlayer.equals(playerProfile.getName())) {
+            if (playerStatusLabel != null) playerStatusLabel.setText("Status: Ready");
+            if (readyButton != null) readyButton.setDisable(true);
+        } else {
+            if (opponentStatusLabel != null) opponentStatusLabel.setText("Status: Ready");
+        }
+    }
+
+    private void handlePlayerUnready(ServerEvent event) {
+        String unreadyPlayer = event.getPart(1);
+        if (unreadyPlayer.equals(playerProfile.getName())) {
+            if (playerStatusLabel != null) playerStatusLabel.setText("Status: Not ready");
+            if (readyButton != null) readyButton.setDisable(false);
+        } else {
+            if (opponentStatusLabel != null) opponentStatusLabel.setText("Status: Not ready");
+        }
+    }
+
+    private void handlePlayerLeft(ServerEvent event) {
+        if (opponentLabel != null) {
+            opponentLabel.setText("Enemy: -");
+            opponentStatusLabel.setText("Status: -");
+        }
     }
 
     private void connectToServer() {
@@ -238,15 +319,15 @@ public class MainApp extends Application {
         VBox playerBox = new VBox(10);
         playerBox.setStyle("-fx-border-color: black; -fx-padding: 10;");
         Label playerLabel = new Label("You: " + playerName);
-        Label playerStatusLabel = new Label("Status: Not ready");
-        Button readyButton = new Button("Ready");
+        playerStatusLabel = new Label("Status: Not ready");
+        readyButton = new Button("Ready");
         playerBox.getChildren().addAll(playerLabel, playerStatusLabel, readyButton);
 
         // ======= Справа: противник =======
         VBox opponentBox = new VBox(10);
         opponentBox.setStyle("-fx-border-color: black; -fx-padding: 10;");
-        Label opponentLabel = new Label("Enemy: -");
-        Label opponentStatusLabel = new Label("Status: -");
+        opponentLabel = new Label("Enemy: -");
+        opponentStatusLabel = new Label("Status: -");
         opponentBox.getChildren().addAll(opponentLabel, opponentStatusLabel);
 
         lobbyLayout.setLeft(playerBox);
@@ -255,53 +336,13 @@ public class MainApp extends Application {
         Scene lobbyScene = new Scene(lobbyLayout, 500, 300);
         primaryStage.setScene(lobbyScene);
 
-        // ========== Подписки на события лобби ==========
-
-        // Присоединился игрок
-        eventBus.subscribe("PLAYER_JOINED", event -> {
-            String opponentName = event.getPart(1);
-            opponentLabel.setText("Enemy: " + opponentName);
-            opponentStatusLabel.setText("Status: Not ready");
-        });
-
-        // Игрок готов
-        eventBus.subscribe("PLAYER_READY", event -> {
-            String readyPlayer = event.getPart(1);
-            if (!readyPlayer.equals(playerName)) {
-                opponentStatusLabel.setText("Status: Ready");
-            } else {
-                playerStatusLabel.setText("Status: Ready");
-                readyButton.setDisable(true);
-            }
-        });
-
-        // Игрок не готов
-        eventBus.subscribe("PLAYER_UNREADY", event -> {
-            String unreadyPlayer = event.getPart(1);
-            if (!unreadyPlayer.equals(playerName)) {
-                opponentStatusLabel.setText("Статус: Не готов");
-            } else {
-                playerStatusLabel.setText("Статус: Не готов");
-                readyButton.setDisable(false);
-            }
-        });
-
-        // Игрок покинул комнату
-        eventBus.subscribe("PLAYER_LEFT", event -> {
-            opponentLabel.setText("Противник: -");
-            opponentStatusLabel.setText("Статус: -");
-        });
-
-        // Начало игры
-        eventBus.subscribe("GAME_START", event -> {
-            showAlert("Игра началась!", "Удачи!");
-            // TODO: showGameScene();
-        });
-
         // ======= Кнопка готов =======
         readyButton.setOnAction(e -> {
             protocolHandler.markReady();
         });
+
+        // ======= Запрашиваем информацию о противнике =======
+        protocolHandler.requestOpponentInfo();
     }
 
     private void showAlert(String title, String message) {

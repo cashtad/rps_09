@@ -1,6 +1,7 @@
 #include "../include/client.h"
 #include <time.h>
 #include <pthread.h>
+#include <stdint.h>
 
 extern pthread_mutex_t global_lock;
 extern client_t *clients[MAX_CLIENTS];

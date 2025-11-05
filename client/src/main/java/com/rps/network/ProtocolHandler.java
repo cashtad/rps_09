@@ -100,6 +100,10 @@ public class ProtocolHandler {
         net.send("LEAVE");
     }
 
+    public void requestOpponentInfo() {
+        net.send("GET_OPPONENT");
+    }
+
     public String getToken() {
         return token;
     }
