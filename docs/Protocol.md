@@ -58,6 +58,10 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
     * leave current room and return to lobby. Server: `LEFT`.
 
+* `GET_OPPONENT`
+
+    * ask for opponent nickname in current room. Server: `OPPONENT_INFO <nickname> <status>` or `ERR`.
+
 * `READY`
 
     * mark ready in room. When both ready server sends `GAME_START`.
@@ -101,6 +105,8 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 * `ROOM_CREATED <room_id>`
 
 * `ROOM_JOINED <room_id>` 
+
+* `OPPONENT_INFO <nickname> <status>`
 
 * `PLAYER_JOINED <nickname>`
 
