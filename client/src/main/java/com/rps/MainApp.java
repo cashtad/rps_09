@@ -70,9 +70,6 @@ public class MainApp extends Application {
         listRoomsButton.setOnAction(e -> protocolHandler.requestRooms());
     }
 
-    /**
-     * Настройка всех обработчиков событий от сервера
-     */
     private void setupEventHandlers() {
         // ========== Логирование всех событий (опционально) ==========
         eventBus.subscribeAll(event -> {

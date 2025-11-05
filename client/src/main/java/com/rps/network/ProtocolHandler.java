@@ -19,10 +19,6 @@ public class ProtocolHandler {
         setupInternalHandlers();
     }
 
-    /**
-     * Настраиваем внутренние обработчики для команд,
-     * требующих промежуточной логики (например, сбор списка комнат)
-     */
     private void setupInternalHandlers() {
         // Обработка ROOM_LIST - начало сбора комнат
         eventBus.subscribe("ROOM_LIST", event -> {
@@ -55,9 +51,6 @@ public class ProtocolHandler {
         });
     }
 
-    /**
-     * Основной обработчик входящих сообщений
-     */
     private void handleMessage(String msg) {
         System.out.println("SERVER: " + msg);
 
