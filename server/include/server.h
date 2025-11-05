@@ -51,4 +51,6 @@ typedef struct {
     int awaiting_moves;        // 1 если ждем ходы, 0 иначе
 } room_t;
 
+void check_room_timeouts(void);
+
 #endif //RPS_09_SERVER_H

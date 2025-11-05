@@ -18,6 +18,7 @@ const char* get_room_state_name(const room_state_t state) {
         case RM_FULL: return "FULL";
         case RM_PLAYING: return "PLAYING";
         case RM_PAUSED: return "PAUSED";
+        case RM_FINISHED: return "FINISHED";
     }
     return "";
 }
