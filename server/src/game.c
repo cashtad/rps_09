@@ -1,7 +1,3 @@
-//
-// Created by leonid on 11/2/25.
-//
-
 #include "../include/game.h"
 
 void start_next_round(room_t *r) {
