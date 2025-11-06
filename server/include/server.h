@@ -21,6 +21,7 @@
 #define NICK_MAX 32
 #define ROOM_NAME_MAX 64
 #define TOKEN_LEN 64
+#define ROUND_TIMEOUT 30  // секунд на ход
 
 typedef enum { ST_CONNECTED, ST_AUTH, ST_IN_LOBBY, ST_READY, ST_PLAYING } client_state_t;
 typedef enum { RM_OPEN, RM_FULL, RM_PLAYING, RM_PAUSED, RM_FINISHED } room_state_t;

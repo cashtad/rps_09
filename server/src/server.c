@@ -115,7 +115,7 @@ void check_room_timeouts(void) {
         room_t *r = &rooms[i];
 
         if (r->state == RM_PLAYING && r->awaiting_moves) {
-            if (now - r->round_start_time > 30) {  // таймаут 30 секунд
+            if (now - r->round_start_time > ROUND_TIMEOUT) {  // таймаут 30 секунд
                 handle_round_timeout(r);
             }
         }

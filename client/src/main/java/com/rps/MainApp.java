@@ -7,12 +7,16 @@ import com.rps.network.ServerEvent;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.animation.Timeline;
+import javafx.animation.KeyFrame;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +33,22 @@ public class MainApp extends Application {
     private Button listRoomsButton;
     private TextField nameField;
     private PlayerProfile playerProfile;
+
+    private Label opponentLabel;
+    private Label opponentStatusLabel;
+    private Label playerStatusLabel;
+    private Button readyButton;
+
+    // Game scene elements
+    private Label playerScoreLabel;
+    private Label opponentScoreLabel;
+    private Label timerLabel;
+    private Label resultLabel;
+    private Button rockButton;
+    private Button paperButton;
+    private Button scissorsButton;
+    private Timeline gameTimer;
+    private int remainingTime;
 
     @Override
     public void start(Stage stage) {
@@ -131,17 +151,30 @@ public class MainApp extends Application {
 
         // Начало игры
         eventBus.subscribe("GAME_START", event -> {
-            showAlert("Game started!", "Good luck!");
-            // TODO: showGameScene();
+            Platform.runLater(this::showGameScene);
+        });
+
+        // ========== События игры ==========
+
+        // Начало раунда
+        eventBus.subscribe("ROUND_START", this::handleRoundStart);
+
+        // Результат раунда
+        eventBus.subscribe("ROUND_RESULT", this::handleRoundResult);
+
+        // Конец игры
+        eventBus.subscribe("GAME_END", this::handleGameEnd);
+
+        // Ход принят
+        eventBus.subscribe("MOVE_ACCEPTED", event -> {
+            Platform.runLater(() -> {
+                disableMoveButtons();
+                resultLabel.setText("Waiting for opponent...");
+            });
         });
     }
 
     // ========== Обработчики событий лобби ==========
-
-    private Label opponentLabel;
-    private Label opponentStatusLabel;
-    private Label playerStatusLabel;
-    private Button readyButton;
 
     private void handleOpponentInfo(ServerEvent event) {
         String opponentName = event.getPart(1);
@@ -345,6 +378,173 @@ public class MainApp extends Application {
         protocolHandler.requestOpponentInfo();
     }
 
+    // ========== Game scene handlers ==========
+
+    private void handleRoundStart(ServerEvent event) {
+        int roundNumber = Integer.parseInt(event.getPart(1));
+        Platform.runLater(() -> {
+            enableMoveButtons();
+            resultLabel.setText("Round " + roundNumber + " - Make your move!");
+            startTimer(30);
+        });
+    }
+
+    private void handleRoundResult(ServerEvent event) {
+        String winner = event.getPart(1);
+        char moveP1 = event.getPart(2).charAt(0);
+        char moveP2 = event.getPart(3).charAt(0);
+        int scoreP1 = Integer.parseInt(event.getPart(4));
+        int scoreP2 = Integer.parseInt(event.getPart(5));
+
+        Platform.runLater(() -> {
+            stopTimer();
+            updateScores(scoreP1, scoreP2);
+
+            String moveStr1 = getMoveString(moveP1);
+            String moveStr2 = getMoveString(moveP2);
+
+            String resultText;
+            if ("DRAW".equals(winner)) {
+                resultText = "Draw! You: " + moveStr1 + " vs " + moveStr2;
+            } else if ("TIMEOUT".equals(winner)) {
+                resultText = "Timeout! You: " + moveStr1 + " vs " + moveStr2;
+            } else if (winner.equals(playerProfile.getName())) {
+                resultText = "You win! You: " + moveStr1 + " vs " + moveStr2;
+            } else {
+                resultText = "You lose! You: " + moveStr1 + " vs " + moveStr2;
+            }
+
+            resultLabel.setText(resultText);
+        });
+    }
+
+    private void handleGameEnd(ServerEvent event) {
+        String winner = event.getPart(1);
+        Platform.runLater(() -> {
+            stopTimer();
+            String message = winner.equals(playerProfile.getName())
+                    ? "Congratulations! You won the game!"
+                    : "Game Over! " + winner + " won!";
+
+            showAlert("Game Finished", message);
+            protocolHandler.requestRooms();
+        });
+    }
+
+    private void showGameScene() {
+        BorderPane gameLayout = new BorderPane();
+        gameLayout.setStyle("-fx-padding: 20;");
+
+        // Top: Score display
+        HBox scoreBox = new HBox(50);
+        scoreBox.setAlignment(Pos.CENTER);
+        scoreBox.setStyle("-fx-padding: 10;");
+
+        playerScoreLabel = new Label("You: 0");
+        playerScoreLabel.setStyle("-fx-font-size: 20; -fx-font-weight: bold;");
+
+        opponentScoreLabel = new Label("Opponent: 0");
+        opponentScoreLabel.setStyle("-fx-font-size: 20; -fx-font-weight: bold;");
+
+        scoreBox.getChildren().addAll(playerScoreLabel, opponentScoreLabel);
+
+        // Timer
+        timerLabel = new Label("Time: 30");
+        timerLabel.setStyle("-fx-font-size: 18; -fx-padding: 10;");
+        timerLabel.setAlignment(Pos.CENTER);
+
+        VBox topBox = new VBox(10, scoreBox, timerLabel);
+        topBox.setAlignment(Pos.CENTER);
+        gameLayout.setTop(topBox);
+
+        // Center: Result display
+        resultLabel = new Label("Waiting for round to start...");
+        resultLabel.setStyle("-fx-font-size: 16; -fx-padding: 20;");
+        resultLabel.setAlignment(Pos.CENTER);
+        resultLabel.setWrapText(true);
+        gameLayout.setCenter(resultLabel);
+
+        // Bottom: Move buttons
+        HBox buttonBox = new HBox(20);
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.setStyle("-fx-padding: 20;");
+
+        rockButton = new Button("Rock");
+        rockButton.setStyle("-fx-font-size: 16; -fx-min-width: 100; -fx-min-height: 50;");
+        rockButton.setOnAction(e -> makeMove("R"));
+
+        paperButton = new Button("Paper");
+        paperButton.setStyle("-fx-font-size: 16; -fx-min-width: 100; -fx-min-height: 50;");
+        paperButton.setOnAction(e -> makeMove("P"));
+
+        scissorsButton = new Button("Scissors");
+        scissorsButton.setStyle("-fx-font-size: 16; -fx-min-width: 100; -fx-min-height: 50;");
+        scissorsButton.setOnAction(e -> makeMove("S"));
+
+        buttonBox.getChildren().addAll(rockButton, paperButton, scissorsButton);
+        gameLayout.setBottom(buttonBox);
+
+        Scene gameScene = new Scene(gameLayout, 600, 400);
+        primaryStage.setScene(gameScene);
+
+        disableMoveButtons();
+    }
+
+    private void makeMove(String move) {
+        protocolHandler.sendMove(move);
+        disableMoveButtons();
+    }
+
+    private void enableMoveButtons() {
+        rockButton.setDisable(false);
+        paperButton.setDisable(false);
+        scissorsButton.setDisable(false);
+    }
+
+    private void disableMoveButtons() {
+        rockButton.setDisable(true);
+        paperButton.setDisable(true);
+        scissorsButton.setDisable(true);
+    }
+
+    private void updateScores(int playerScore, int opponentScore) {
+        playerScoreLabel.setText("You: " + playerScore);
+        opponentScoreLabel.setText("Opponent: " + opponentScore);
+    }
+
+    private void startTimer(int seconds) {
+        stopTimer();
+        remainingTime = seconds;
+        timerLabel.setText("Time: " + remainingTime);
+
+        gameTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            remainingTime--;
+            timerLabel.setText("Time: " + remainingTime);
+
+            if (remainingTime <= 0) {
+                stopTimer();
+            }
+        }));
+        gameTimer.setCycleCount(Timeline.INDEFINITE);
+        gameTimer.play();
+    }
+
+    private void stopTimer() {
+        if (gameTimer != null) {
+            gameTimer.stop();
+        }
+    }
+
+    private String getMoveString(char move) {
+        switch (move) {
+            case 'R': return "Rock";
+            case 'P': return "Paper";
+            case 'S': return "Scissors";
+            case 'X': return "None";
+            default: return "Unknown";
+        }
+    }
+
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
@@ -356,6 +556,7 @@ public class MainApp extends Application {
     @Override
     public void stop() throws Exception {
         super.stop();
+        stopTimer();
         eventBus.clear();
         networkManager.disconnect();
     }
