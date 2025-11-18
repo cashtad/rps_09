@@ -1,7 +1,7 @@
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/GameRoom.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/MainApp.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/PlayerProfile.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/network/EventBus.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/network/NetworkManager.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/network/ProtocolHandler.java
-/Users/leonid/CLionProjects/rps_09/client/src/main/java/com/rps/network/ServerEvent.java
+/home/leonid/rps-09/client/src/main/java/com/rps/network/ServerEvent.java
+/home/leonid/rps-09/client/src/main/java/com/rps/GameRoom.java
+/home/leonid/rps-09/client/src/main/java/com/rps/PlayerProfile.java
+/home/leonid/rps-09/client/src/main/java/com/rps/network/NetworkManager.java
+/home/leonid/rps-09/client/src/main/java/com/rps/network/ProtocolHandler.java
+/home/leonid/rps-09/client/src/main/java/com/rps/MainApp.java
+/home/leonid/rps-09/client/src/main/java/com/rps/network/EventBus.java

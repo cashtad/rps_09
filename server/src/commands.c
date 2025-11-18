@@ -13,6 +13,11 @@ void handle_hello(client_t *c, char *args) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_nick");
         return;
     }
+    if (find_client_by_name(nick) != NULL) {
+        send_line(c->fd, "ERR 107 NICKNAME_TAKEN");
+        return;
+    }
+
     strncpy(c->nick, nick, NICK_MAX);
     c->nick[NICK_MAX] = '\0';
     gen_token(c->token);

@@ -29,7 +29,7 @@ void process_round_result(room_t *r) {
     send_line(r->player1->fd, "ROUND_RESULT %s %c %c %d %d",
               winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
     send_line(r->player2->fd, "ROUND_RESULT %s %c %c %d %d",
-              winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
+              winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
 
     printf("Player1 <%s>: %d\n", r->player1->nick, r->score_p1);
     printf(" Player2 <%s>: %d\n", r->player2->nick, r->score_p2);
@@ -74,7 +74,7 @@ void handle_round_timeout(room_t *r) {
     send_line(r->player1->fd, "ROUND_RESULT TIMEOUT %c %c %d %d",
               m1, m2, r->score_p1, r->score_p2);
     send_line(r->player2->fd, "ROUND_RESULT TIMEOUT %c %c %d %d",
-              m1, m2, r->score_p1, r->score_p2);
+              m2, m1, r->score_p2, r->score_p1);
 
     if (r->score_p1 >= 5 || r->score_p2 >= 5) {
         end_game(r);

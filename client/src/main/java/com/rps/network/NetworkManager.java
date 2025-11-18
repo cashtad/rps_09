@@ -10,12 +10,13 @@ public class NetworkManager {
     private BufferedReader in;
     private BufferedWriter out;
     private Consumer<String> onMessageReceived;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private ExecutorService executor;
 
     public void connect(String host, int port) throws IOException {
         socket = new Socket(host, port);
         in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        executor = Executors.newSingleThreadExecutor();
         startListening();
     }
 
@@ -23,6 +24,7 @@ public class NetworkManager {
         try {
             if (socket != null) socket.close();
         } catch (IOException ignored) {}
+        socket = null;
         executor.shutdownNow();
     }
 

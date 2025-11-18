@@ -1,3 +1,4 @@
+// server/src/server.c
 #define _GNU_SOURCE
 
 #include "../include/server.h"
@@ -9,6 +10,23 @@
 pthread_mutex_t global_lock = PTHREAD_MUTEX_INITIALIZER;
 client_t *clients[MAX_CLIENTS];
 room_t rooms[MAX_ROOMS];
+
+// Dedicated timeout checker thread
+static void *room_timeout_worker(void *arg) {
+    (void)arg;
+
+    // Sleep granularity ~200ms to fire close to the 30s mark
+    const struct timespec interval = { .tv_sec = 0, .tv_nsec = 200 * 1000 * 1000 };
+
+    for (;;) {
+        pthread_mutex_lock(&global_lock);
+        check_room_timeouts();
+        pthread_mutex_unlock(&global_lock);
+
+        nanosleep(&interval, NULL);
+    }
+    return NULL;
+}
 
 void *client_worker(void *arg) {
     client_t *c = arg;
@@ -23,20 +41,9 @@ void *client_worker(void *arg) {
     }
     setvbuf(f, NULL, _IOLBF, 0);
 
-    time_t last_timeout_check = 0;  // добавить
-
     while (fgets(buf, sizeof(buf), f) != NULL) {
         c->last_seen = time(NULL);
         handle_line(c, buf);
-
-        // Проверка таймаутов раз в секунду
-        time_t now = time(NULL);
-        if (now - last_timeout_check >= 1) {
-            pthread_mutex_lock(&global_lock);
-            check_room_timeouts();
-            pthread_mutex_unlock(&global_lock);
-            last_timeout_check = now;
-        }
     }
 
     fprintf(stderr, "Client %s disconnected\n", c->nick);
@@ -74,6 +81,14 @@ int main(int argc, char **argv) {
     for (int i = 0; i < MAX_CLIENTS; i++) clients[i] = NULL;
     init_rooms();
 
+    // Start independent timeout monitor
+    pthread_t timer_thread;
+    if (pthread_create(&timer_thread, NULL, room_timeout_worker, NULL) != 0) {
+        perror("pthread_create(timer_thread)");
+        exit(1);
+    }
+    pthread_detach(timer_thread);
+
     while (1) {
         struct sockaddr_in cliaddr;
         socklen_t clilen = sizeof(cliaddr);
@@ -108,6 +123,8 @@ int main(int argc, char **argv) {
         pthread_detach(c->thread);
     }
 }
+
+// Fires exactly at 30 seconds since round start (no extra 1s delay)
 void check_room_timeouts(void) {
     time_t now = time(NULL);
 
@@ -115,7 +132,7 @@ void check_room_timeouts(void) {
         room_t *r = &rooms[i];
 
         if (r->state == RM_PLAYING && r->awaiting_moves) {
-            if (now - r->round_start_time > ROUND_TIMEOUT) {  // таймаут 30 секунд
+            if (now - r->round_start_time >= ROUND_TIMEOUT) {
                 handle_round_timeout(r);
             }
         }

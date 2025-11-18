@@ -38,6 +38,15 @@ client_t* find_client_by_fd(int fd) {
     return NULL;
 }
 
+client_t* find_client_by_name(const char *name) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] != NULL && strcmp(clients[i]->nick, name) == 0){
+            return clients[i];
+        }
+    }
+    return NULL;
+}
+
 void gen_token(char *out) {
     const char *hex = "0123456789abcdef";
     srand((unsigned)time(NULL) ^ (uintptr_t)pthread_self());

@@ -120,7 +120,7 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
 * `MOVE_ACCEPTED`
 
-* `ROUND_RESULT <winner|DRAW> <move_p1> <move_p2> <score_p1> <score_p2>`
+* `ROUND_RESULT <winner|DRAW> <move_yours> <move_opponents> <score_yours> <score_opponents>`
 
     * examples:
 
@@ -146,6 +146,7 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 * `104` UNKNOWN_ROOM
 * `105` NOT_IN_ROOM
 * `106` ROOM_WRONG_STATE
+* `107` NICKNAME_TAKEN
 * `200` TOO_MANY_INVALID_MSGS
 
 ## State machines (ASCII)

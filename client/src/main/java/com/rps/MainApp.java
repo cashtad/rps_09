@@ -129,6 +129,9 @@ public class MainApp extends Application {
         eventBus.subscribe("ERR", event -> {
             String errorCode = event.getPart(1);
             String errorMsg = event.getPartsCount() > 2 ? event.getPart(2) : "Unknown error";
+            if (errorCode.equals("107")) {
+                networkManager.disconnect();
+            }
             showAlert("Error", "Error " + errorCode + ": " + errorMsg);
         });
 
@@ -391,17 +394,17 @@ public class MainApp extends Application {
 
     private void handleRoundResult(ServerEvent event) {
         String winner = event.getPart(1);
-        char moveP1 = event.getPart(2).charAt(0);
-        char moveP2 = event.getPart(3).charAt(0);
-        int scoreP1 = Integer.parseInt(event.getPart(4));
-        int scoreP2 = Integer.parseInt(event.getPart(5));
+        char movePlayers = event.getPart(2).charAt(0);
+        char moveOpponents = event.getPart(3).charAt(0);
+        int scorePlayers = Integer.parseInt(event.getPart(4));
+        int scoreOpponents = Integer.parseInt(event.getPart(5));
 
         Platform.runLater(() -> {
             stopTimer();
-            updateScores(scoreP1, scoreP2);
+            updateScores(scorePlayers, scoreOpponents);
 
-            String moveStr1 = getMoveString(moveP1);
-            String moveStr2 = getMoveString(moveP2);
+            String moveStr1 = getMoveString(movePlayers);
+            String moveStr2 = getMoveString(moveOpponents);
 
             String resultText;
             if ("DRAW".equals(winner)) {
