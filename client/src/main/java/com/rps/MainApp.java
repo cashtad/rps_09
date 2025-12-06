@@ -135,6 +135,9 @@ public class MainApp extends Application {
             showAlert("Error", "Error " + errorCode + ": " + errorMsg);
         });
 
+        // ========== Обработка подтверждений ==========
+        eventBus.subscribe("OK", this::handleConfirmation);
+
         // ========== События лобби (глобальные подписки) ==========
 
         // Информация о противнике
@@ -153,9 +156,7 @@ public class MainApp extends Application {
         eventBus.subscribe("PLAYER_LEFT", this::handlePlayerLeft);
 
         // Начало игры
-        eventBus.subscribe("GAME_START", event -> {
-            Platform.runLater(this::showGameScene);
-        });
+        eventBus.subscribe("GAME_START", this::showGameScene);
 
         // ========== События игры ==========
 
@@ -176,6 +177,17 @@ public class MainApp extends Application {
             });
         });
     }
+
+    private void handleConfirmation(ServerEvent event) {
+        String confirmedCommand = event.getPart(1);
+        switch (confirmedCommand) {
+            case "you_are_ready" -> {
+                if (readyButton != null) readyButton.setDisable(true);
+                if (playerStatusLabel != null) playerStatusLabel.setText("Status: Ready");
+            }
+        }
+    }
+
 
     // ========== Обработчики событий лобби ==========
 
@@ -234,13 +246,16 @@ public class MainApp extends Application {
             showAlert("Error", "Enter your name!");
             return;
         }
+        if (nickname.split(" ").length > 1) {
+            showAlert("Error", "Name cannot contain spaces!");
+            return;
+        }
 
         try {
             networkManager.connect("0.0.0.0", 2500);
             protocolHandler.sendHello(nickname);
         } catch (Exception ex) {
             showAlert("Connection error", ex.getMessage());
-            ex.printStackTrace();
         }
     }
 
@@ -288,7 +303,11 @@ public class MainApp extends Application {
                     setGraphic(null);
                 } else {
                     Label nameLabel = new Label(item.toString());
-                    hbox.getChildren().setAll(nameLabel, joinButton);
+                    hbox.getChildren().setAll(nameLabel);
+                    if (item.getStatus().equals("OPEN")) {
+                        hbox.getChildren().setAll(nameLabel, joinButton);
+                    }
+
                     setGraphic(hbox);
                 }
             }
@@ -324,10 +343,18 @@ public class MainApp extends Application {
         cancelButton.setOnAction(e -> dialog.close());
         confirmButton.setOnAction(e -> {
             String roomName = roomNameField.getText().trim();
-            if (!roomName.isEmpty()) {
-                protocolHandler.createRoom(roomName);
-                dialog.close();
+            if (roomName.isEmpty()) {
+                showAlert("Error", "Enter room name!");
+                return;
             }
+            if (roomName.split(" ").length > 1) {
+                showAlert("Error", "Name cannot contain spaces!");
+                return;
+            }
+
+            protocolHandler.createRoom(roomName);
+            dialog.close();
+
         });
 
         HBox buttons = new HBox(10, cancelButton, confirmButton);
@@ -434,7 +461,7 @@ public class MainApp extends Application {
         });
     }
 
-    private void showGameScene() {
+    private void showGameScene(ServerEvent event) {
         BorderPane gameLayout = new BorderPane();
         gameLayout.setStyle("-fx-padding: 20;");
 

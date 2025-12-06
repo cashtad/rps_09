@@ -20,7 +20,7 @@ static void *room_timeout_worker(void *arg) {
 
     for (;;) {
         pthread_mutex_lock(&global_lock);
-        check_room_timeouts();
+        check_rooms();
         pthread_mutex_unlock(&global_lock);
 
         nanosleep(&interval, NULL);
@@ -124,8 +124,8 @@ int main(int argc, char **argv) {
     }
 }
 
-// Fires exactly at 30 seconds since round start (no extra 1s delay)
-void check_room_timeouts(void) {
+// Fires exactly at TIMEOUT seconds since round start (no extra 1s delay)
+void check_rooms(void) {
     time_t now = time(NULL);
 
     for (int i = 0; i < MAX_ROOMS; i++) {

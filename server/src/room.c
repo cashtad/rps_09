@@ -38,6 +38,29 @@ int create_room(const char *name) {
     return -1;
 }
 
+int remove_room_by_id(const int id) {
+    for (int i = 0; i < MAX_ROOMS; i++) {
+        if (rooms[i].id == id) {
+            rooms[i].id = 0;
+            rooms[i].name[0] = '\0';
+            rooms[i].player1 = rooms[i].player2 = NULL;
+            rooms[i].player_count = 0;
+            rooms[i].state = RM_OPEN;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int remove_room(room_t *room) {
+    room->id = 0;
+    room->name[0] = '\0';
+    room->player1 = room->player2 = NULL;
+    room->player_count = 0;
+    room->state = RM_OPEN;
+    return 0;
+}
+
 room_t* find_room_by_id(const int id) {
     for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == id) return &rooms[i];

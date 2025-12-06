@@ -48,11 +48,19 @@ void end_game(room_t *r) {
     send_line(r->player1->fd, "GAME_END %s", winner);
     send_line(r->player2->fd, "GAME_END %s", winner);
 
-    r->state = RM_FINISHED;
+    // Сброс состояния игроков
     r->player1->state = ST_AUTH;
     r->player2->state = ST_AUTH;
     r->player1->room_id = -1;
     r->player2->room_id = -1;
+
+    // Сброс состояния комнаты
+    r->id = 0;
+    r->name[0] = '\0';
+    r->player1 = r->player2 = NULL;
+    r->player_count = 0;
+    r->state = RM_OPEN;
+
 }
 
 

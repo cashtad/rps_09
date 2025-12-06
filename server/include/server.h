@@ -21,7 +21,7 @@
 #define NICK_MAX 32
 #define ROOM_NAME_MAX 64
 #define TOKEN_LEN 64
-#define ROUND_TIMEOUT 30  // секунд на ход
+#define ROUND_TIMEOUT 10  // секунд на ход
 
 typedef enum { ST_CONNECTED, ST_AUTH, ST_IN_LOBBY, ST_READY, ST_PLAYING } client_state_t;
 typedef enum { RM_OPEN, RM_FULL, RM_PLAYING, RM_PAUSED, RM_FINISHED } room_state_t;
@@ -52,6 +52,8 @@ typedef struct {
     int awaiting_moves;        // 1 если ждем ходы, 0 иначе
 } room_t;
 
-void check_room_timeouts(void);
+/* Checks rooms for timeouts and states. If there are any rooms with FINISHED state, they will be cleared. If some players did not make their moves within ROUND_TIMEOUT, the round will be processed accordingly.
+ */
+void check_rooms(void);
 
 #endif //RPS_09_SERVER_H
