@@ -2,6 +2,7 @@ package com.rps.network;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class ProtocolHandler {
     private final NetworkManager net;
@@ -49,10 +50,17 @@ public class ProtocolHandler {
         eventBus.subscribe("ROOM_CREATED", event -> {
             requestRooms();
         });
+
+        eventBus.subscribe("PING", event -> {
+            respondPing();
+        });
     }
 
     private void handleMessage(String msg) {
-        System.out.println("SERVER: " + msg);
+        if (!Objects.equals(msg, "PING")) {
+            System.out.println("SERVER: " + msg);
+        }
+
 
         String[] parts = msg.split(" ", 2); // Разделяем только на команду и остальное
         String command = parts[0];
@@ -102,6 +110,14 @@ public class ProtocolHandler {
 
     public void requestOpponentInfo() {
         net.send("GET_OPPONENT");
+    }
+
+    public void respondPing() {
+        net.send("PONG");
+    }
+
+    public void sendReconnect(String token) {
+        net.send("RECONNECT " + token);
     }
 
     public String getToken() {

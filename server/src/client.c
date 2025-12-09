@@ -30,10 +30,30 @@ void unregister_client(const client_t *c) {
     pthread_mutex_unlock(&global_lock);
 }
 
+void unregister_client_without_lock(const client_t *c) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] == c) {
+            clients[i] = NULL;
+            break;
+        }
+    }
+}
+
 client_t* find_client_by_fd(int fd) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i] != NULL && clients[i]->fd == fd)
             return clients[i];
+    }
+    return NULL;
+}
+client_t* find_client_by_token(const char* token) {
+    if (!token) return NULL;
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] != NULL && clients[i]->token[0] != '\0' && 
+            strcmp(clients[i]->token, token) == 0) {
+            return clients[i];
+        }
     }
     return NULL;
 }
@@ -53,4 +73,3 @@ void gen_token(char *out) {
     for (size_t i=0;i<30 && i+1<TOKEN_LEN;i++) out[i] = hex[rand() % 16];
     out[30 < TOKEN_LEN ? 30 : TOKEN_LEN-1] = '\0';
 }
-

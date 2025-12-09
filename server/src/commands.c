@@ -50,7 +50,7 @@ void handle_create(client_t *c, char *args) {
     }
     char buf[LINE_BUF];
     snprintf(buf, LINE_BUF, "ROOM_CREATED %d", rid);
-    send_broadcast(buf);
+    send_broadcast_about_new_room(buf);
 }
 
 void handle_join(client_t *c, char *args) {
@@ -140,7 +140,18 @@ void handle_move(client_t *c, char *args) {
     }
 
     room_t *r = find_room_by_id(c->room_id);
-    if (!r || !r->awaiting_moves) {
+    if (!r) {
+        send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+        return;
+    }
+
+    // Проверяем состояние комнаты
+    if (r->state != RM_PLAYING) {
+        send_line(c->fd, "ERR 101 INVALID_STATE room_not_playing");
+        return;
+    }
+
+    if (!r->awaiting_moves) {
         send_line(c->fd, "ERR 101 INVALID_STATE not_accepting_moves");
         return;
     }
@@ -170,8 +181,13 @@ void handle_move(client_t *c, char *args) {
 
     // Проверяем, получены ли оба хода
     if (r->move_p1 != '\0' && r->move_p2 != '\0') {
+        fprintf(stderr, "Both moves received, processing round\n");
         r->awaiting_moves = 0;
         process_round_result(r);
+    } else {
+        fprintf(stderr, "Waiting for opponent move: p1=%c p2=%c\n",
+               r->move_p1 ? r->move_p1 : '-',
+               r->move_p2 ? r->move_p2 : '-');
     }
 }
 
@@ -197,9 +213,107 @@ void handle_get_opponent(client_t *c) {
     send_line(c->fd, "OPPONENT_INFO %s %s", opponent->nick, status);
 }
 
+void handle_reconnect(client_t *c, char* args) {
+    char *token = strtok(args, " ");
+    if (!token) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT missing_token");
+        return;
+    }
+
+    client_t *old_client = find_client_by_token(token);
+    if (!old_client) {
+        send_line(c->fd, "ERR XXX INVALID_TOKEN");
+        return;
+    }
+
+    // Копируем данные старого клиента
+    strncpy(c->nick, old_client->nick, NICK_MAX);
+    c->nick[NICK_MAX] = '\0';
+    strncpy(c->token, old_client->token, TOKEN_LEN);
+    c->token[TOKEN_LEN - 1] = '\0';
+    c->state = old_client->state;
+    c->room_id = old_client->room_id;
+    c->timeout_state = CONNECTED;
+    c->last_seen = time(NULL);
+
+    // Обновляем указатели в комнате
+    if (c->room_id != -1) {
+        room_t *r = find_room_by_id(c->room_id);
+        if (r) {
+            if (r->player1 == old_client) {
+                r->player1 = c;
+            } else if (r->player2 == old_client) {
+                r->player2 = c;
+            }
+
+            // Уведомляем оппонента
+            client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
+            if (opponent) {
+                send_line(opponent->fd, "PLAYER_RECONNECTED %s", c->nick);
+            }
+
+            // Отправляем информацию о состоянии
+            if (c->state == ST_PLAYING && (r->state == RM_PLAYING || r->state == RM_PAUSED)) {
+                send_line(c->fd, "RECONNECT_OK GAME %d %d %d",
+                         r->score_p1, r->score_p2, r->round_number);
+
+                // Возобновляем игру если была пауза
+                if (r->state == RM_PAUSED) {
+                    r->state = RM_PLAYING;
+                    r->round_start_time = time(NULL);
+
+                    if (opponent) {
+                        send_line(opponent->fd, "GAME_RESUMED %d %d %d",
+                                 r->round_number, r->score_p1, r->score_p2);
+                    }
+                    send_line(c->fd, "GAME_RESUMED %d %d %d",
+                             r->round_number, r->score_p1, r->score_p2);
+
+                    fprintf(stderr, "Game resumed in room %d\n", r->id);
+
+                    // ВАЖНО: Сохраняем состояние awaiting_moves при реконнекте
+                    // Если оба хода уже были сделаны до дисконнекта
+                    if (r->move_p1 != '\0' && r->move_p2 != '\0') {
+                        fprintf(stderr, "Both moves present, processing round immediately\n");
+                        r->awaiting_moves = 0;
+                        process_round_result(r);
+                    } else {
+                        // Ходов еще нет или есть только один - ждем
+                        r->awaiting_moves = 1;
+                        fprintf(stderr, "Waiting for moves: p1=%c p2=%c\n",
+                               r->move_p1 ? r->move_p1 : '-',
+                               r->move_p2 ? r->move_p2 : '-');
+                    }
+                }
+            } else if (c->state == ST_IN_LOBBY || c->state == ST_READY) {
+                if (opponent) {
+                    send_line(c->fd, "RECONNECT_OK LOBBY %s %s", opponent->nick,
+                             (opponent->state == ST_READY) ? "READY" : "NOT_READY");
+                } else {
+                    send_line(c->fd, "RECONNECT_OK LOBBY");
+                }
+            } else {
+                send_line(c->fd, "RECONNECT_OK CONNECTED");
+            }
+        } else {
+            send_line(c->fd, "RECONNECT_OK CONNECTED");
+        }
+    } else {
+        send_line(c->fd, "RECONNECT_OK CONNECTED");
+    }
+
+    // Закрываем старое соединение
+    close(old_client->fd);
+    unregister_client_without_lock(old_client);
+    free(old_client);
+}
+
 void handle_line(client_t *c, char *line) {
     trim_crlf(line);
     if (strlen(line) == 0) return;
+    if (strcmp(line, "PONG") != 0) {
+        printf("Recieved from client %s: %s\n", c->nick, line);
+    }
 
     char *cmd = strtok(line, " ");
     if (!cmd) return;
@@ -240,8 +354,12 @@ void handle_line(client_t *c, char *line) {
         pthread_mutex_unlock(&global_lock);
     } else if (strcmp(cmd, "QUIT") == 0) {
         send_line(c->fd, "OK bye");
-    } else if (strcmp(cmd, "PING") == 0) {
-        send_line(c->fd, "PONG");
+    } else if (strcmp(cmd, "PONG") == 0) {
+        return;
+    } else if (strcmp(cmd, "RECONNECT") == 0){
+        pthread_mutex_lock(&global_lock);
+        handle_reconnect(c, args);
+        pthread_mutex_unlock(&global_lock);
     } else {
         send_line(c->fd, "ERR 100 BAD_FORMAT unknown_command");
     }

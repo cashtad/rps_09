@@ -9,6 +9,8 @@ void unregister_client(const client_t *c);
 client_t* find_client_by_fd(int fd);
 void gen_token(char *out);
 client_t* find_client_by_name(const char *name);
+client_t* find_client_by_token(const char* token);
+void unregister_client_without_lock(const client_t *c);
 
 
 #endif //RPS_09_CLIENT_H

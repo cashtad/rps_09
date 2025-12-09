@@ -11,7 +11,7 @@ All messages originate from either Client or Server and are plain ASCII/UTF-8.
 * Each client must send `HELLO <nickname>` immediately after TCP connect.
 * Server responds with `WELCOME <token>` or `ERR <code> <message>`.
 * For each client request the server sends at least one response (ACK/ERR/etc.).
-* Heartbeat: `PING` / `PONG` — client may send `PING` periodically; server replies `PONG`.
+* Heartbeat: `PING` / `PONG` — server may send `PING` periodically; client replies `PONG`.
 * If nothing happens, nothing is sent (except optional periodic PING).
 * Max nickname length: 32 chars; allowed chars: printable non-space.
 * Max room name length: 64 chars.

@@ -1,9 +1,6 @@
 package com.rps;
 
-import com.rps.network.EventBus;
-import com.rps.network.NetworkManager;
-import com.rps.network.ProtocolHandler;
-import com.rps.network.ServerEvent;
+import com.rps.network.*;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -26,6 +23,7 @@ public class MainApp extends Application {
     private NetworkManager networkManager;
     private ProtocolHandler protocolHandler;
     private EventBus eventBus;
+    private ReconnectionManager reconnectionManager;
 
     private Stage primaryStage;
     private Button connectButton;
@@ -50,6 +48,9 @@ public class MainApp extends Application {
     private Timeline gameTimer;
     private int remainingTime;
 
+    private String currentHost = "0.0.0.0";
+    private int currentPort = 2500;
+
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
@@ -58,6 +59,10 @@ public class MainApp extends Application {
         networkManager = new NetworkManager();
         eventBus = new EventBus();
         protocolHandler = new ProtocolHandler(networkManager, eventBus);
+        reconnectionManager = new ReconnectionManager(networkManager, protocolHandler, eventBus);
+
+        // Настраиваем обработчики переподключения
+        setupReconnectionHandlers();
 
         // Настраиваем подписки на события ПЕРЕД показом UI
         setupEventHandlers();
@@ -89,6 +94,64 @@ public class MainApp extends Application {
             connectToServer();
         });
         listRoomsButton.setOnAction(e -> protocolHandler.requestRooms());
+    }
+
+    private void setupReconnectionHandlers() {
+        // При разрыве соединения
+        networkManager.setOnDisconnected(() -> {
+            if (playerProfile != null && playerProfile.getToken() != null) {
+                System.out.println("Connection lost! Starting auto-reconnect...");
+                reconnectionManager.startAutoReconnect(playerProfile.getToken());
+            }
+        });
+
+        // Если автоматическое переподключение не удалось
+        reconnectionManager.setOnAutoReconnectFailed(() -> {
+            Platform.runLater(this::showManualReconnectScene);
+        });
+
+        // При успешном переподключении
+        reconnectionManager.setOnReconnectSuccess(state -> {
+            Platform.runLater(() -> {
+                if (state.startsWith("GAME")) {
+                    // Парсим игровое состояние: "GAME score1 score2 round"
+                    String[] parts = state.split(" ");
+                    if (parts.length >= 4) {
+                        int score1 = Integer.parseInt(parts[1]);
+                        int score2 = Integer.parseInt(parts[2]);
+                        int round = Integer.parseInt(parts[3]);
+
+                        showGameScene(null);
+                        updateScores(score1, score2);
+                        resultLabel.setText("Reconnected! Round " + round);
+                    }
+                } else if (state.startsWith("LOBBY")) {
+                    // Парсим: "LOBBY opponent_nick status" или "LOBBY NONE"
+                    String[] parts = state.split(" ");
+                    if (playerProfile != null) {
+                        showLobbyScene("reconnected", playerProfile.getName());
+
+                        // Обновляем информацию об оппоненте
+                        if (parts.length >= 2 && !"NONE".equals(parts[1])) {
+                            String opponentNick = parts[1];
+                            String opponentStatus = parts.length >= 3 ? parts[2] : "NOT_READY";
+
+                            if (opponentLabel != null) {
+                                opponentLabel.setText("Enemy: " + opponentNick);
+                                opponentStatusLabel.setText("Status: " +
+                                    ("READY".equals(opponentStatus) ? "Ready" : "Not ready"));
+                            }
+                        }
+                    }
+                } else {
+                    // Просто подключены
+                    protocolHandler.requestRooms();
+                }
+                showAlert("Reconnected", "Connection restored!");
+            });
+        });
+
+        reconnectionManager.setConnectionInfo(currentHost, currentPort);
     }
 
     private void setupEventHandlers() {
@@ -168,6 +231,31 @@ public class MainApp extends Application {
 
         // Конец игры
         eventBus.subscribe("GAME_END", this::handleGameEnd);
+
+        // Пауза игры
+        eventBus.subscribe("GAME_PAUSED", event -> {
+            Platform.runLater(() -> {
+                stopTimer();
+                disableMoveButtons();
+                resultLabel.setText("Game paused - opponent disconnected");
+                showAlert("Game Paused", "Opponent has disconnected. Waiting for reconnection...");
+            });
+        });
+
+        // Возобновление игры
+        eventBus.subscribe("GAME_RESUMED", event -> {
+            int roundNumber = Integer.parseInt(event.getPart(1));
+            int score1 = Integer.parseInt(event.getPart(2));
+            int score2 = Integer.parseInt(event.getPart(3));
+
+            Platform.runLater(() -> {
+                updateScores(score1, score2);
+                enableMoveButtons();
+                resultLabel.setText("Game resumed! Round " + roundNumber);
+                startTimer(10);
+                showAlert("Game Resumed", "Opponent reconnected. Continue playing!");
+            });
+        });
 
         // Ход принят
         eventBus.subscribe("MOVE_ACCEPTED", event -> {
@@ -251,8 +339,12 @@ public class MainApp extends Application {
             return;
         }
 
+        currentHost = "0.0.0.0";
+        currentPort = 2500;
+        reconnectionManager.setConnectionInfo(currentHost, currentPort);
+
         try {
-            networkManager.connect("0.0.0.0", 2500);
+            networkManager.connect(currentHost, currentPort);
             protocolHandler.sendHello(nickname);
         } catch (Exception ex) {
             showAlert("Connection error", ex.getMessage());
@@ -415,7 +507,7 @@ public class MainApp extends Application {
         Platform.runLater(() -> {
             enableMoveButtons();
             resultLabel.setText("Round " + roundNumber + " - Make your move!");
-            startTimer(30);
+            startTimer(10);
         });
     }
 
@@ -465,7 +557,7 @@ public class MainApp extends Application {
         BorderPane gameLayout = new BorderPane();
         gameLayout.setStyle("-fx-padding: 20;");
 
-        // Top: Score display
+        // Top: Score display and disconnect button
         HBox scoreBox = new HBox(50);
         scoreBox.setAlignment(Pos.CENTER);
         scoreBox.setStyle("-fx-padding: 10;");
@@ -478,12 +570,20 @@ public class MainApp extends Application {
 
         scoreBox.getChildren().addAll(playerScoreLabel, opponentScoreLabel);
 
+        // Test disconnect button - simulates network failure
+        Button disconnectButton = new Button("Simulate Network Loss");
+        disconnectButton.setStyle("-fx-font-size: 12; -fx-background-color: #ff6b6b; -fx-text-fill: white;");
+        disconnectButton.setOnAction(e -> {
+            System.out.println("Simulating network failure (intentionalDisconnect = false)...");
+            networkManager.simulateConnectionLoss();
+        });
+
         // Timer
         timerLabel = new Label("Time: 30");
         timerLabel.setStyle("-fx-font-size: 18; -fx-padding: 10;");
         timerLabel.setAlignment(Pos.CENTER);
 
-        VBox topBox = new VBox(10, scoreBox, timerLabel);
+        VBox topBox = new VBox(10, scoreBox, timerLabel, disconnectButton);
         topBox.setAlignment(Pos.CENTER);
         gameLayout.setTop(topBox);
 
@@ -514,7 +614,7 @@ public class MainApp extends Application {
         buttonBox.getChildren().addAll(rockButton, paperButton, scissorsButton);
         gameLayout.setBottom(buttonBox);
 
-        Scene gameScene = new Scene(gameLayout, 600, 400);
+        Scene gameScene = new Scene(gameLayout, 600, 450);
         primaryStage.setScene(gameScene);
 
         disableMoveButtons();
@@ -583,6 +683,51 @@ public class MainApp extends Application {
         alert.showAndWait();
     }
 
+    private void showManualReconnectScene() {
+        VBox layout = new VBox(20);
+        layout.setAlignment(Pos.CENTER);
+        layout.setStyle("-fx-padding: 40;");
+
+        Label titleLabel = new Label("Connection Lost");
+        titleLabel.setStyle("-fx-font-size: 24; -fx-font-weight: bold;");
+
+        Label messageLabel = new Label("Automatic reconnection failed.\nPlease try to reconnect manually.");
+        messageLabel.setStyle("-fx-font-size: 14; -fx-text-alignment: center;");
+        messageLabel.setWrapText(true);
+
+        Button reconnectButton = new Button("Reconnect");
+        reconnectButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
+        reconnectButton.setOnAction(e -> {
+            if (playerProfile != null && playerProfile.getToken() != null) {
+                reconnectionManager.manualReconnect(playerProfile.getToken());
+                reconnectButton.setDisable(true);
+                messageLabel.setText("Reconnecting...");
+            }
+        });
+
+        Button resetButton = new Button("Start Over");
+        resetButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
+        resetButton.setOnAction(e -> {
+            playerProfile = null;
+            nameField.clear();
+            connectButton.setDisable(false);
+            listRoomsButton.setDisable(true);
+            statusLabel.setText("");
+
+            VBox loginLayout = new VBox(10);
+            loginLayout.setStyle("-fx-padding: 20;");
+            loginLayout.getChildren().addAll(nameField, connectButton, statusLabel, listRoomsButton);
+
+            Scene loginScene = new Scene(loginLayout, 300, 200);
+            primaryStage.setScene(loginScene);
+        });
+
+        layout.getChildren().addAll(titleLabel, messageLabel, reconnectButton, resetButton);
+
+        Scene scene = new Scene(layout, 400, 300);
+        primaryStage.setScene(scene);
+    }
+
     @Override
     public void stop() throws Exception {
         super.stop();
@@ -595,3 +740,4 @@ public class MainApp extends Application {
         launch(args);
     }
 }
+

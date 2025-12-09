@@ -14,6 +14,7 @@ void handle_ready(client_t *c);
 void handle_leave(client_t *c);
 void handle_move(client_t *c, char *args);
 void handle_get_opponent(client_t *c);
+void handle_reconnect(client_t *c, char *args);
 void handle_quit(client_t *c);
 
 #endif //RPS_09_COMMANDS_H

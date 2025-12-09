@@ -66,6 +66,12 @@ void end_game(room_t *r) {
 
 
 void handle_round_timeout(room_t *r) {
+    // Не обрабатываем таймаут если игра на паузе
+    printf("Handling timeout for moves");
+    if (r->state == RM_PAUSED) {
+        return;
+    }
+
     r->awaiting_moves = 0;
 
     // Игрок, не сделавший ход, проигрывает раунд
