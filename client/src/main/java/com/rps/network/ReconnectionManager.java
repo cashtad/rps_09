@@ -20,8 +20,8 @@ public class ReconnectionManager {
     private Runnable onAutoReconnectFailed;
     private Consumer<String> onReconnectSuccess;
     private String lastToken;
-    private String host = "0.0.0.0";
-    private int port = 2500;
+    private String host;
+    private int port;
 
     public ReconnectionManager(NetworkManager networkManager, ProtocolHandler protocolHandler, EventBus eventBus) {
         this.networkManager = networkManager;
@@ -107,7 +107,7 @@ public class ReconnectionManager {
 
     private void attemptReconnect() {
         try {
-            System.out.println("Attempting reconnection... (attempt " + (reconnectAttempts + 1) + ")");
+            System.out.println("Attempting reconnection to " + host + ":" + port + "... (attempt " + (reconnectAttempts + 1) + ")");
             networkManager.connect(host, port);
             protocolHandler.sendReconnect(lastToken);
         } catch (Exception e) {

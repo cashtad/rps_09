@@ -30,6 +30,8 @@ public class MainApp extends Application {
     private Label statusLabel;
     private Button listRoomsButton;
     private TextField nameField;
+    private TextField hostField;
+    private TextField portField;
     private PlayerProfile playerProfile;
 
     private Label opponentLabel;
@@ -70,11 +72,22 @@ public class MainApp extends Application {
         // ==================== UI SETUP ====================
         VBox loginLayout = new VBox(10);
         loginLayout.setStyle("-fx-padding: 20;");
+        loginLayout.setAlignment(Pos.CENTER);
+
+        Label titleLabel = new Label("Connect to Server");
+        titleLabel.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
 
         nameField = new TextField();
         nameField.setPromptText("Enter your name");
 
+        hostField = new TextField("10.0.2.2");
+        hostField.setPromptText("Server IP");
+
+        portField = new TextField("2500");
+        portField.setPromptText("Server Port");
+
         connectButton = new Button("Connect");
+        connectButton.setPrefWidth(200);
 
         statusLabel = new Label();
         statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
@@ -82,9 +95,17 @@ public class MainApp extends Application {
         listRoomsButton = new Button("List of rooms");
         listRoomsButton.setDisable(true);
 
-        loginLayout.getChildren().addAll(nameField, connectButton, statusLabel, listRoomsButton);
+        loginLayout.getChildren().addAll(
+            titleLabel,
+            new Label("Name:"), nameField,
+            new Label("Server IP:"), hostField,
+            new Label("Port:"), portField,
+            connectButton,
+            statusLabel,
+            listRoomsButton
+        );
 
-        Scene loginScene = new Scene(loginLayout, 300, 200);
+        Scene loginScene = new Scene(loginLayout, 350, 400);
         stage.setTitle("RPS Client");
         stage.setScene(loginScene);
         stage.show();
@@ -339,8 +360,26 @@ public class MainApp extends Application {
             return;
         }
 
-        currentHost = "0.0.0.0";
-        currentPort = 2500;
+        // TODO: СДЕЛАТЬ БОЛЬШЕ ПРОВЕРОК НА СЕРВЕР И ПОРТ
+        String host = hostField.getText().trim();
+        if (host.isEmpty()) {
+            showAlert("Error", "Enter server IP!");
+            return;
+        }
+
+        int port;
+        try {
+            port = Integer.parseInt(portField.getText().trim());
+            if (port < 1 || port > 65535) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException e) {
+            showAlert("Error", "Invalid port number! Use 1-65535");
+            return;
+        }
+
+        currentHost = host;
+        currentPort = port;
         reconnectionManager.setConnectionInfo(currentHost, currentPort);
 
         try {
@@ -695,13 +734,16 @@ public class MainApp extends Application {
         messageLabel.setStyle("-fx-font-size: 14; -fx-text-alignment: center;");
         messageLabel.setWrapText(true);
 
+        Label serverInfoLabel = new Label("Server: " + currentHost + ":" + currentPort);
+        serverInfoLabel.setStyle("-fx-font-size: 12; -fx-text-fill: gray;");
+
         Button reconnectButton = new Button("Reconnect");
         reconnectButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
         reconnectButton.setOnAction(e -> {
             if (playerProfile != null && playerProfile.getToken() != null) {
                 reconnectionManager.manualReconnect(playerProfile.getToken());
                 reconnectButton.setDisable(true);
-                messageLabel.setText("Reconnecting...");
+                messageLabel.setText("Reconnecting to " + currentHost + ":" + currentPort + "...");
             }
         });
 
@@ -716,13 +758,26 @@ public class MainApp extends Application {
 
             VBox loginLayout = new VBox(10);
             loginLayout.setStyle("-fx-padding: 20;");
-            loginLayout.getChildren().addAll(nameField, connectButton, statusLabel, listRoomsButton);
+            loginLayout.setAlignment(Pos.CENTER);
 
-            Scene loginScene = new Scene(loginLayout, 300, 200);
+            Label titleLabelLogin = new Label("Connect to Server");
+            titleLabelLogin.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
+
+            loginLayout.getChildren().addAll(
+                titleLabelLogin,
+                new Label("Name:"), nameField,
+                new Label("Server IP:"), hostField,
+                new Label("Port:"), portField,
+                connectButton,
+                statusLabel,
+                listRoomsButton
+            );
+
+            Scene loginScene = new Scene(loginLayout, 350, 400);
             primaryStage.setScene(loginScene);
         });
 
-        layout.getChildren().addAll(titleLabel, messageLabel, reconnectButton, resetButton);
+        layout.getChildren().addAll(titleLabel, messageLabel, serverInfoLabel, reconnectButton, resetButton);
 
         Scene scene = new Scene(layout, 400, 300);
         primaryStage.setScene(scene);
