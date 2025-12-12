@@ -14,8 +14,8 @@ public class ReconnectionManager {
     private volatile boolean isReconnecting = false;
     private volatile boolean reconnectionSuccess = false;
     private int reconnectAttempts = 0;
-    private static final int MAX_AUTO_RECONNECT_SECONDS = 15;
-    private static final int RECONNECT_INTERVAL_MS = 2000;
+    private static final int MAX_AUTO_RECONNECT_SECONDS = 5;
+    private static final int RECONNECT_INTERVAL_MS = 1000;
 
     private Runnable onAutoReconnectFailed;
     private Consumer<String> onReconnectSuccess;

@@ -22,9 +22,10 @@
 #define ROOM_NAME_MAX 64
 #define TOKEN_LEN 64
 #define ROUND_TIMEOUT 10  // секунд на ход
-#define PING_INTERVAL 5      // раз в 5 секунд
-#define CLIENT_TIMEOUT_SOFT 15    // если 15 секунд нет PONG → кик
-#define CLIENT_TIMEOUT_HARD 120    // если 15 секунд нет PONG → кик
+
+#define PING_INTERVAL 3      // раз в 5 секунд
+#define CLIENT_TIMEOUT_SOFT 7    // если 15 секунд нет PONG → кик
+#define CLIENT_TIMEOUT_HARD 45    // если 15 секунд нет PONG → кик
 
 typedef enum { ST_CONNECTED, ST_AUTH, ST_IN_LOBBY, ST_READY, ST_PLAYING } client_state_t;
 typedef enum { RM_OPEN, RM_FULL, RM_PLAYING, RM_PAUSED, RM_FINISHED } room_state_t;

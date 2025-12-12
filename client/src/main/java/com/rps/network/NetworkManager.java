@@ -17,7 +17,7 @@ public class NetworkManager {
     private volatile boolean intentionalDisconnect = false;
 
     // Таймаут: если за это время не пришло ни одного сообщения, считаем что связь потеряна
-    private static final int CONNECTION_TIMEOUT_SECONDS = 15;
+    private static final int CONNECTION_TIMEOUT_SECONDS = 7;
     private volatile long lastMessageTime;
 
     public void connect(String host, int port) throws IOException {

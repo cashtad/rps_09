@@ -53,6 +53,9 @@ public class MainApp extends Application {
     private String currentHost = "0.0.0.0";
     private int currentPort = 2500;
 
+    private Label connectionStatusLabel;
+    private boolean isConnected = false;
+
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
@@ -120,6 +123,8 @@ public class MainApp extends Application {
     private void setupReconnectionHandlers() {
         // При разрыве соединения
         networkManager.setOnDisconnected(() -> {
+            Platform.runLater(() -> updateConnectionStatus(false));
+
             if (playerProfile != null && playerProfile.getToken() != null) {
                 System.out.println("Connection lost! Starting auto-reconnect...");
                 reconnectionManager.startAutoReconnect(playerProfile.getToken());
@@ -134,6 +139,8 @@ public class MainApp extends Application {
         // При успешном переподключении
         reconnectionManager.setOnReconnectSuccess(state -> {
             Platform.runLater(() -> {
+                updateConnectionStatus(true);
+
                 if (state.startsWith("GAME")) {
                     // Парсим игровое состояние: "GAME score1 score2 round"
                     String[] parts = state.split(" ");
@@ -191,6 +198,8 @@ public class MainApp extends Application {
             statusLabel.setText("Connected as " + token);
             connectButton.setDisable(true);
             listRoomsButton.setDisable(false);
+
+            updateConnectionStatus(true);
         });
 
         // ========== ROOMS_LOADED - список комнат загружен ==========
@@ -385,14 +394,19 @@ public class MainApp extends Application {
         try {
             networkManager.connect(currentHost, currentPort);
             protocolHandler.sendHello(nickname);
+            updateConnectionStatus(true);
         } catch (Exception ex) {
             showAlert("Connection error", ex.getMessage());
+            updateConnectionStatus(false);
         }
     }
 
     private void showRoomsScene(List<String> roomsRaw) {
         VBox roomsLayout = new VBox(10);
         roomsLayout.setStyle("-fx-padding: 20;");
+
+        // Connection status at the top
+        connectionStatusLabel = createConnectionStatusLabel();
 
         Label title = new Label("List of rooms:");
 
@@ -451,10 +465,12 @@ public class MainApp extends Application {
         refreshButton.setOnAction(e -> protocolHandler.requestRooms());
 
         HBox buttons = new HBox(10, createRoomButton, refreshButton);
-        roomsLayout.getChildren().addAll(title, listView, buttons);
+        roomsLayout.getChildren().addAll(connectionStatusLabel, title, listView, buttons);
 
         Scene roomsScene = new Scene(roomsLayout, 400, 400);
         primaryStage.setScene(roomsScene);
+
+        updateConnectionStatus(isConnected);
     }
 
     private void showCreateRoomDialog() {
@@ -500,14 +516,19 @@ public class MainApp extends Application {
         BorderPane lobbyLayout = new BorderPane();
         lobbyLayout.setStyle("-fx-padding: 20;");
 
-        // ======= Кнопка назад =======
+        // ======= Connection status and back button =======
+        VBox topBox = new VBox(5);
+        connectionStatusLabel = createConnectionStatusLabel();
+
         Button backButton = new Button("Back");
         backButton.setOnAction(e -> {
             protocolHandler.leaveRoom();
             protocolHandler.requestRooms();
         });
-        lobbyLayout.setTop(backButton);
-        BorderPane.setMargin(backButton, new Insets(0, 0, 10, 0));
+
+        topBox.getChildren().addAll(connectionStatusLabel, backButton);
+        lobbyLayout.setTop(topBox);
+        BorderPane.setMargin(topBox, new Insets(0, 0, 10, 0));
 
         // ======= Слева: твой игрок =======
         VBox playerBox = new VBox(10);
@@ -537,6 +558,8 @@ public class MainApp extends Application {
 
         // ======= Запрашиваем информацию о противнике =======
         protocolHandler.requestOpponentInfo();
+
+        updateConnectionStatus(isConnected);
     }
 
     // ========== Game scene handlers ==========
@@ -596,7 +619,12 @@ public class MainApp extends Application {
         BorderPane gameLayout = new BorderPane();
         gameLayout.setStyle("-fx-padding: 20;");
 
-        // Top: Score display and disconnect button
+        // Top: Connection status, Score display and disconnect button
+        VBox topContainer = new VBox(10);
+        topContainer.setAlignment(Pos.CENTER);
+
+        connectionStatusLabel = createConnectionStatusLabel();
+
         HBox scoreBox = new HBox(50);
         scoreBox.setAlignment(Pos.CENTER);
         scoreBox.setStyle("-fx-padding: 10;");
@@ -622,9 +650,8 @@ public class MainApp extends Application {
         timerLabel.setStyle("-fx-font-size: 18; -fx-padding: 10;");
         timerLabel.setAlignment(Pos.CENTER);
 
-        VBox topBox = new VBox(10, scoreBox, timerLabel, disconnectButton);
-        topBox.setAlignment(Pos.CENTER);
-        gameLayout.setTop(topBox);
+        topContainer.getChildren().addAll(connectionStatusLabel, scoreBox, timerLabel, disconnectButton);
+        gameLayout.setTop(topContainer);
 
         // Center: Result display
         resultLabel = new Label("Waiting for round to start...");
@@ -653,10 +680,11 @@ public class MainApp extends Application {
         buttonBox.getChildren().addAll(rockButton, paperButton, scissorsButton);
         gameLayout.setBottom(buttonBox);
 
-        Scene gameScene = new Scene(gameLayout, 600, 450);
+        Scene gameScene = new Scene(gameLayout, 600, 500);
         primaryStage.setScene(gameScene);
 
         disableMoveButtons();
+        updateConnectionStatus(isConnected);
     }
 
     private void makeMove(String move) {
@@ -727,6 +755,9 @@ public class MainApp extends Application {
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-padding: 40;");
 
+        connectionStatusLabel = createConnectionStatusLabel();
+        updateConnectionStatus(false);
+
         Label titleLabel = new Label("Connection Lost");
         titleLabel.setStyle("-fx-font-size: 24; -fx-font-weight: bold;");
 
@@ -777,10 +808,33 @@ public class MainApp extends Application {
             primaryStage.setScene(loginScene);
         });
 
-        layout.getChildren().addAll(titleLabel, messageLabel, serverInfoLabel, reconnectButton, resetButton);
+        layout.getChildren().addAll(connectionStatusLabel, titleLabel, messageLabel, serverInfoLabel, reconnectButton, resetButton);
 
-        Scene scene = new Scene(layout, 400, 300);
+        Scene scene = new Scene(layout, 400, 350);
         primaryStage.setScene(scene);
+    }
+
+    private Label createConnectionStatusLabel() {
+        Label label = new Label();
+        label.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5;");
+        label.setAlignment(Pos.CENTER_RIGHT);
+        return label;
+    }
+
+    private void updateConnectionStatus(boolean connected) {
+        this.isConnected = connected;
+
+        if (connectionStatusLabel != null) {
+            Platform.runLater(() -> {
+                if (connected) {
+                    connectionStatusLabel.setText("● Connected");
+                    connectionStatusLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: green;");
+                } else {
+                    connectionStatusLabel.setText("● Connection lost");
+                    connectionStatusLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: red;");
+                }
+            });
+        }
     }
 
     @Override
