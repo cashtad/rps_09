@@ -13,7 +13,12 @@ public class NetworkManager {
     private Consumer<String> onMessageReceived;
     private Runnable onDisconnected;
     private ExecutorService executor;
+    private ScheduledExecutorService timeoutChecker;
     private volatile boolean intentionalDisconnect = false;
+
+    // Таймаут: если за это время не пришло ни одного сообщения, считаем что связь потеряна
+    private static final int CONNECTION_TIMEOUT_SECONDS = 15;
+    private volatile long lastMessageTime;
 
     public void connect(String host, int port) throws IOException {
         socket = new Socket(host, port);
@@ -21,11 +26,15 @@ public class NetworkManager {
         out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         executor = Executors.newSingleThreadExecutor();
         intentionalDisconnect = false;
+        lastMessageTime = System.currentTimeMillis();
+
         startListening();
+        startTimeoutMonitoring();
     }
 
     public void disconnect() {
         intentionalDisconnect = true;
+        stopTimeoutMonitoring();
         try {
             if (socket != null) socket.close();
         } catch (IOException ignored) {}
@@ -33,11 +42,9 @@ public class NetworkManager {
         if (executor != null) executor.shutdownNow();
     }
 
-    /**
-     * Симулирует неожиданную потерю соединения (для тестирования)
-     */
     public void simulateConnectionLoss() {
-        intentionalDisconnect = false;  // НЕ намеренное отключение
+        intentionalDisconnect = false;
+        stopTimeoutMonitoring();
         try {
             if (socket != null) socket.close();
         } catch (IOException ignored) {}
@@ -50,12 +57,14 @@ public class NetworkManager {
             try {
                 String line;
                 while ((line = in.readLine()) != null) {
+                    lastMessageTime = System.currentTimeMillis();
                     if (onMessageReceived != null)
                         onMessageReceived.accept(line);
                 }
             } catch (IOException e) {
                 System.out.println("Connection closed: " + e.getMessage());
             } finally {
+                stopTimeoutMonitoring();
                 if (!intentionalDisconnect && onDisconnected != null) {
                     onDisconnected.run();
                 }
@@ -63,6 +72,35 @@ public class NetworkManager {
         });
         listenerThread.setDaemon(true);
         listenerThread.start();
+    }
+
+    private void startTimeoutMonitoring() {
+        timeoutChecker = Executors.newSingleThreadScheduledExecutor();
+        timeoutChecker.scheduleAtFixedRate(() -> {
+            long timeSinceLastMessage = System.currentTimeMillis() - lastMessageTime;
+            long secondsSinceLastMessage = timeSinceLastMessage / 1000;
+
+            if (secondsSinceLastMessage > CONNECTION_TIMEOUT_SECONDS) {
+                System.out.println("Connection timeout detected! No messages for " +
+                        secondsSinceLastMessage + " seconds");
+
+                // Принудительно закрываем соединение и запускаем переподключение
+                intentionalDisconnect = false;
+                try {
+                    if (socket != null) socket.close();
+                } catch (IOException ignored) {}
+
+                if (onDisconnected != null) {
+                    onDisconnected.run();
+                }
+            }
+        }, CONNECTION_TIMEOUT_SECONDS, 3, TimeUnit.SECONDS);
+    }
+
+    private void stopTimeoutMonitoring() {
+        if (timeoutChecker != null && !timeoutChecker.isShutdown()) {
+            timeoutChecker.shutdown();
+        }
     }
 
     public void send(String message) {
@@ -74,7 +112,6 @@ public class NetworkManager {
         executor.submit(() -> {
             try {
                 synchronized (out) {
-
                     if (!Objects.equals(message, "PONG")) {
                         System.out.println("CLIENT: " + message);
                     }
@@ -98,4 +135,9 @@ public class NetworkManager {
     public boolean isConnected() {
         return socket != null && socket.isConnected() && !socket.isClosed();
     }
+
+    public long getSecondsSinceLastMessage() {
+        return (System.currentTimeMillis() - lastMessageTime) / 1000;
+    }
 }
+
