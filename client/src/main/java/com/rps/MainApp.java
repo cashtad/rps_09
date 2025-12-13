@@ -148,10 +148,18 @@ public class MainApp extends Application {
                         int score1 = Integer.parseInt(parts[1]);
                         int score2 = Integer.parseInt(parts[2]);
                         int round = Integer.parseInt(parts[3]);
+                        char performedMove = parts.length >=5 ? parts[4].charAt(0) : 'X';
 
                         showGameScene(null);
                         updateScores(score1, score2);
-                        resultLabel.setText("Reconnected! Round " + round);
+                        if (performedMove != 'X') {
+                            disableMoveButtons();
+                            resultLabel.setText("Waiting for opponent...");
+                        } else {
+                            enableMoveButtons();
+                            resultLabel.setText("Reconnected! Round " + round + " - Make your move!");
+                            startTimer(10);
+                        }
                     }
                 } else if (state.startsWith("LOBBY")) {
                     // Парсим: "LOBBY opponent_nick status" или "LOBBY NONE"
@@ -369,11 +377,31 @@ public class MainApp extends Application {
             return;
         }
 
-        // TODO: СДЕЛАТЬ БОЛЬШЕ ПРОВЕРОК НА СЕРВЕР И ПОРТ
+        if (nickname.length() > 32) {
+            showAlert("Error", "Name too long! Max 32 characters.");
+            return;
+        }
+
         String host = hostField.getText().trim();
         if (host.isEmpty()) {
             showAlert("Error", "Enter server IP!");
             return;
+        }
+        String[] parts = host.split("\\.");
+        if (parts.length != 4) {
+            showAlert("Error", "Invalid IP address format!");
+            return;
+        }
+        for (String part : parts) {
+            try {
+                int num = Integer.parseInt(part);
+                if (num < 0 || num > 255) {
+                    throw new NumberFormatException();
+                }
+            } catch (NumberFormatException e) {
+                showAlert("Error", "Invalid IP address format!");
+                return;
+            }
         }
 
         int port;
@@ -496,6 +524,10 @@ public class MainApp extends Application {
             }
             if (roomName.split(" ").length > 1) {
                 showAlert("Error", "Name cannot contain spaces!");
+                return;
+            }
+            if (roomName.length() > 32) {
+                showAlert("Error", "Name too long! Max 32 characters.");
                 return;
             }
 
@@ -637,20 +669,13 @@ public class MainApp extends Application {
 
         scoreBox.getChildren().addAll(playerScoreLabel, opponentScoreLabel);
 
-        // Test disconnect button - simulates network failure
-        Button disconnectButton = new Button("Simulate Network Loss");
-        disconnectButton.setStyle("-fx-font-size: 12; -fx-background-color: #ff6b6b; -fx-text-fill: white;");
-        disconnectButton.setOnAction(e -> {
-            System.out.println("Simulating network failure (intentionalDisconnect = false)...");
-            networkManager.simulateConnectionLoss();
-        });
 
         // Timer
         timerLabel = new Label("Time: 30");
         timerLabel.setStyle("-fx-font-size: 18; -fx-padding: 10;");
         timerLabel.setAlignment(Pos.CENTER);
 
-        topContainer.getChildren().addAll(connectionStatusLabel, scoreBox, timerLabel, disconnectButton);
+        topContainer.getChildren().addAll(connectionStatusLabel, scoreBox, timerLabel);
         gameLayout.setTop(topContainer);
 
         // Center: Result display
@@ -773,7 +798,7 @@ public class MainApp extends Application {
         reconnectButton.setOnAction(e -> {
             if (playerProfile != null && playerProfile.getToken() != null) {
                 reconnectionManager.manualReconnect(playerProfile.getToken());
-                reconnectButton.setDisable(true);
+//                reconnectButton.setDisable(true);
                 messageLabel.setText("Reconnecting to " + currentHost + ":" + currentPort + "...");
             }
         });

@@ -254,9 +254,11 @@ void handle_reconnect(client_t *c, char* args) {
 
             // Отправляем информацию о состоянии
             if (c->state == ST_PLAYING && (r->state == RM_PLAYING || r->state == RM_PAUSED)) {
-                send_line(c->fd, "RECONNECT_OK GAME %d %d %d",
-                         r->score_p1, r->score_p2, r->round_number);
-
+                //Получаем информацию, был ли совершен ход до отключения
+                char performed_move = (r->player1 == c) ? r->move_p1 : r->move_p2;
+                send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
+                         r->score_p1, r->score_p2, r->round_number, performed_move);
+                
                 // Возобновляем игру если была пауза
                 if (r->state == RM_PAUSED) {
                     r->state = RM_PLAYING;

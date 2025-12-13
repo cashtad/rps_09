@@ -19,7 +19,7 @@
 #define MAX_CLIENTS 128
 #define MAX_ROOMS 64
 #define NICK_MAX 32
-#define ROOM_NAME_MAX 64
+#define ROOM_NAME_MAX 32
 #define TOKEN_LEN 64
 #define ROUND_TIMEOUT 10  // секунд на ход
 
