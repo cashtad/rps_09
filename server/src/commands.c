@@ -97,18 +97,7 @@ void handle_ready(client_t *c) {
 
     if (opponent->state == ST_READY) {
         // Оба игрока готовы, начинаем игру
-        send_line(r->player1->fd, "GAME_START");
-        send_line(r->player2->fd, "GAME_START");
-        c->state = ST_PLAYING;
-        opponent->state = ST_PLAYING;
-        r->state = RM_PLAYING;
-
-        // Инициализируем игру
-        r->round_number = 0;
-        r->score_p1 = 0;
-        r->score_p2 = 0;
-
-        start_next_round(r);  // запускаем первый раунд
+        start_game(r);
     }
 }
 
@@ -217,12 +206,14 @@ void handle_reconnect(client_t *c, char* args) {
     char *token = strtok(args, " ");
     if (!token) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_token");
+        shutdown(c->fd, SHUT_RDWR);
         return;
     }
 
     client_t *old_client = find_client_by_token(token);
     if (!old_client) {
         send_line(c->fd, "ERR XXX INVALID_TOKEN");
+        shutdown(c->fd, SHUT_RDWR);
         return;
     }
 
@@ -235,6 +226,69 @@ void handle_reconnect(client_t *c, char* args) {
     c->room_id = old_client->room_id;
     c->timeout_state = CONNECTED;
     c->last_seen = time(NULL);
+
+    shutdown(old_client->fd, SHUT_RDWR);
+
+    switch (c->state) {
+        case ST_AUTH:
+            handle_list(c);
+            break;
+        case ST_IN_LOBBY:
+            room_t *r = find_room_by_id(c->room_id);
+            if (!r) {
+                send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+                break;
+            }
+            // заменить старого клиента на нового
+            if (r->player1 == old_client) {
+                r->player1 = c;
+            } else {
+                r->player2 = c;
+            }
+
+            // Отправляем информацию
+            client_t *opponent = get_opponent_in_room(r, c);
+            if (opponent) {
+                send_line(c->fd, "RECONNECT_OK LOBBY %s %s", opponent->nick,
+                         (opponent->state == ST_READY) ? "READY" : "NOT_READY");
+            }
+            break;
+        case ST_PLAYING:
+            room_t *room = find_room_by_id(c->room_id);
+            if (!room) {
+                send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+                break;
+            }
+            // заменить старого клиента на нового
+            if (room->player1 == old_client) {
+                room->player1 = c;
+            } else {
+                room->player2 = c;
+            }
+
+            // Обновляем комнату
+            room->state = RM_PLAYING;
+            room->awaiting_moves = 1;
+            room->round_start_time = time(NULL);
+
+            opponent = get_opponent_in_room(room, c);
+            //Получаем информацию, был ли совершен ход до отключения
+            char performed_move = (room->player1 == c) ? room->move_p1 : room->move_p2;
+            send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
+                     room->score_p1, room->score_p2, room->round_number, performed_move);
+
+            if (opponent) {
+                performed_move = (room->player1 == c) ? room->move_p2 : room->move_p1;
+                send_line(opponent->fd, "GAME_RESUMED %d %d %d %c",
+                         room->round_number, room->score_p1, room->score_p2, performed_move);
+            }
+
+
+            // Ходов еще нет или есть только один - ждем
+            break;
+        default:
+            break;
+    }
 
     // Обновляем указатели в комнате
     if (c->room_id != -1) {

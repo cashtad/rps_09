@@ -7,7 +7,7 @@
 
 #include "server.h"
 #include "../include/network.h"
-
+void start_game(room_t *r);
 void start_next_round(room_t *r);
 void process_round_result(room_t *r);
 void end_game(room_t *r);

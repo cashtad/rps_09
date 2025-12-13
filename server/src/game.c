@@ -1,5 +1,23 @@
 #include "../include/game.h"
 
+
+void start_game(room_t *r) {
+    // Инициализируем игру
+    r->state = RM_PLAYING;
+    r->round_number = 0;
+    r->score_p1 = 0;
+    r->score_p2 = 0;
+
+    // Обновляем игроков и уведомляем их о начале игры
+    r->player1->state = ST_PLAYING;
+    r->player2->state = ST_PLAYING;
+    send_line(r->player1->fd, "GAME_START");
+    send_line(r->player2->fd, "GAME_START");
+
+    // Запускаем первый раунд
+    start_next_round(r);
+}
+
 void start_next_round(room_t *r) {
     r->round_number++;
     r->move_p1 = '\0';
