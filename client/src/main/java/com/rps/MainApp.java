@@ -638,6 +638,7 @@ public class MainApp extends Application {
         String winner = event.getPart(1);
         Platform.runLater(() -> {
             stopTimer();
+            // TODO: здесь нужно расширить обработку. GAME_END opponent_left
             String message = winner.equals(playerProfile.getName())
                     ? "Congratulations! You won the game!"
                     : "Game Over! " + winner + " won!";

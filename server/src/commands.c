@@ -258,7 +258,7 @@ void handle_reconnect(client_t *c, char* args) {
                 char performed_move = (r->player1 == c) ? r->move_p1 : r->move_p2;
                 send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
                          r->score_p1, r->score_p2, r->round_number, performed_move);
-                
+
                 // Возобновляем игру если была пауза
                 if (r->state == RM_PAUSED) {
                     r->state = RM_PLAYING;
@@ -313,14 +313,19 @@ void handle_reconnect(client_t *c, char* args) {
 void handle_line(client_t *c, char *line) {
     trim_crlf(line);
     if (strlen(line) == 0) return;
-    if (strcmp(line, "PONG") != 0) {
-        printf("Recieved from client %s: %s\n", c->nick, line);
-    }
 
     char *cmd = strtok(line, " ");
     if (!cmd) return;
 
     char *args = strtok(NULL, "");
+
+    if (strcmp(line, "PONG") != 0) {
+        printf("Recieved from client %s: %s\n", c->nick, line);
+    }
+
+    pthread_mutex_lock(&global_lock);
+    c->last_seen = time(NULL);
+    pthread_mutex_unlock(&global_lock);
 
     if (strcmp(cmd, "HELLO") == 0) {
         pthread_mutex_lock(&global_lock);

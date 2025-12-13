@@ -24,10 +24,16 @@
 #define ROUND_TIMEOUT 10  // секунд на ход
 
 #define PING_INTERVAL 3      // раз в 5 секунд
-#define CLIENT_TIMEOUT_SOFT 7    // если 15 секунд нет PONG → кик
+#define CLIENT_TIMEOUT_SOFT 6    // если 15 секунд нет PONG → кик
 #define CLIENT_TIMEOUT_HARD 45    // если 15 секунд нет PONG → кик
 
-typedef enum { ST_CONNECTED, ST_AUTH, ST_IN_LOBBY, ST_READY, ST_PLAYING } client_state_t;
+typedef enum {
+    ST_CONNECTED, // начальное состояние при подключении
+    ST_AUTH, // присвоен токен, ник и тд. смотрит на список лобби
+    ST_IN_LOBBY, // сидит в лобби, не готов
+    ST_READY, // сидит в лобби готовый
+    ST_PLAYING // играет
+} client_state_t;
 typedef enum { RM_OPEN, RM_FULL, RM_PLAYING, RM_PAUSED, RM_FINISHED } room_state_t;
 typedef enum { CONNECTED, SOFT_TIMEOUT, HARD_TIMEOUT } client_timeout_t;
 
@@ -63,5 +69,9 @@ typedef struct {
  */
 void check_rooms(void);
 void check_clients(void);
+void process_client_hard_disconnection(client_t *c);
+void process_client_timeout(client_t *c);
+void *room_timeout_worker(void *arg);
+void *client_worker(void *arg);
 
 #endif //RPS_09_SERVER_H

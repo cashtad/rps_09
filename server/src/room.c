@@ -12,6 +12,17 @@ void init_rooms(void) {
         rooms[i].id = 0;
 }
 
+int get_amount_of_players_in_room(const room_t *r) {
+    return r->player_count;
+}
+
+client_t* get_opponent_in_room(room_t *r, client_t *c) {
+    if (r-> player_count < 2) return NULL;
+    if (r->player1 == c) return r->player2;
+    if (r->player2 == c) return r->player1;
+    return NULL;
+}
+
 const char* get_room_state_name(const room_state_t state) {
     switch (state) {
         case RM_OPEN: return "OPEN";
@@ -62,6 +73,7 @@ int remove_room(room_t *room) {
 }
 
 room_t* find_room_by_id(const int id) {
+    if (id < 0) return NULL;
     for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == id) return &rooms[i];
     }
@@ -93,15 +105,15 @@ int add_player_to_room(client_t *c, room_t *r) {
 }
 
 int remove_player_from_room(client_t *c, room_t *r) {
-    if (r->player_count > 1) {
+    if (r == NULL || c == NULL) return -1;
+    if (r->player_count == 2) {
         if (r->player1 == c) {
             r->player1 = r->player2;
             r->player2 = NULL;
-            if (r->player1)
-                send_line(r->player1->fd, "PLAYER_LEFT %s", c->nick);
         } else {
             r->player2 = NULL;
         }
+        send_line(r->player1->fd, "PLAYER_LEFT %s", c->nick);
     } else {
         r->player1 = NULL;
     }

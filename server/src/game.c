@@ -32,7 +32,7 @@ void process_round_result(room_t *r) {
               winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
 
     printf("Player1 <%s>: %d\n", r->player1->nick, r->score_p1);
-    printf(" Player2 <%s>: %d\n", r->player2->nick, r->score_p2);
+    printf("Player2 <%s>: %d\n", r->player2->nick, r->score_p2);
 
     // Проверяем конец игры
     if (r->score_p1 >= 5 || r->score_p2 >= 5) {
@@ -67,7 +67,7 @@ void end_game(room_t *r) {
 
 void handle_round_timeout(room_t *r) {
     // Не обрабатываем таймаут если игра на паузе
-    printf("Handling timeout for moves");
+    printf("Handling timeout for moves\n");
     if (r->state == RM_PAUSED) {
         return;
     }
