@@ -42,16 +42,6 @@ public class NetworkManager {
         if (executor != null) executor.shutdownNow();
     }
 
-    public void simulateConnectionLoss() {
-        intentionalDisconnect = false;
-        stopTimeoutMonitoring();
-        try {
-            if (socket != null) socket.close();
-        } catch (IOException ignored) {}
-        socket = null;
-        if (executor != null) executor.shutdownNow();
-    }
-
     private void startListening() {
         Thread listenerThread = new Thread(() -> {
             try {
@@ -130,10 +120,6 @@ public class NetworkManager {
 
     public boolean isConnected() {
         return socket != null && socket.isConnected() && !socket.isClosed();
-    }
-
-    public long getSecondsSinceLastMessage() {
-        return (System.currentTimeMillis() - lastMessageTime) / 1000;
     }
 }
 
