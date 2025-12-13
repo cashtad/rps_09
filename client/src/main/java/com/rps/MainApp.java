@@ -291,7 +291,7 @@ public class MainApp extends Application {
                 enableMoveButtons();
                 resultLabel.setText("Game resumed! Round " + roundNumber);
                 startTimer(10);
-                showAlert("Game Resumed", "Opponent reconnected. Continue playing!");
+                showAlert("Game Resumed", "Continue playing!");
             });
         });
 
