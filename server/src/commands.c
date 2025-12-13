@@ -283,8 +283,6 @@ void handle_reconnect(client_t *c, char* args) {
                          room->round_number, room->score_p1, room->score_p2, performed_move);
             }
 
-
-            // Ходов еще нет или есть только один - ждем
             break;
         default:
             break;
