@@ -186,26 +186,8 @@ void check_clients(void) {
         // 1) Если давно ничего не получали → клиент завис/отвалился
         if (now - c->last_seen >= CLIENT_TIMEOUT_SOFT && c->timeout_state == CONNECTED) {
             fprintf(stderr, "Client soft timeout: %s\n", c->nick);
-
             process_client_timeout(c);
-
-            c->timeout_state = SOFT_TIMEOUT;
-            room_t *r = find_room_by_id(c->room_id);
-            if (r) {
-
-                // Если игра идет - ставим на паузу
-                if (r->state == RM_PLAYING) {
-                    client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
-
-                    r->state = RM_PAUSED;
-                    r->awaiting_moves = 0;
-
-                    if (opponent) {
-                        send_line(opponent->fd, "GAME_PAUSED");
-                    }
-                    fprintf(stderr, "Game paused in room %d\n", r->id);
-                } // TODO доработать если игрок не в игре а в лобби с оппонентом
-            }
+            continue;
         }
 
         // 2) Hard отключение клиента с удалением его
