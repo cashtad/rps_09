@@ -90,7 +90,7 @@ public class NetworkManager {
     }
 
     public void send(String message) {
-        if (executor == null || executor.isShutdown() || isConnected()) {
+        if (executor == null || executor.isShutdown() || !isConnected()) {
             System.out.println("Cannot send, executor is shut down: " + message);
             return;
         }
