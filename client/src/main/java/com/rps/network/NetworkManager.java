@@ -94,7 +94,7 @@ public class NetworkManager {
                     onDisconnected.run();
                 }
             }
-        }, CONNECTION_TIMEOUT_SECONDS, 3, TimeUnit.SECONDS);
+        }, 0, 1, TimeUnit.SECONDS);
     }
 
     private void stopTimeoutMonitoring() {

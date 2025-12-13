@@ -124,7 +124,7 @@ void *client_worker(void *arg) {
     close(c->fd);
     pthread_mutex_lock(&global_lock);
     process_client_hard_disconnection(c);
-    unregister_client(c);
+    unregister_client_without_lock(c);
     pthread_mutex_unlock(&global_lock);
     free(c);
     return NULL;
@@ -186,6 +186,7 @@ void check_clients(void) {
         // 1) Если давно ничего не получали → клиент завис/отвалился
         if (now - c->last_seen >= CLIENT_TIMEOUT_SOFT && c->timeout_state == CONNECTED) {
             fprintf(stderr, "Client soft timeout: %s\n", c->nick);
+            c->timeout_state = SOFT_TIMEOUT;
             process_client_timeout(c);
             continue;
         }
@@ -198,7 +199,7 @@ void check_clients(void) {
         }
 
         // 3) Отправляем PING раз в PING_INTERVAL секунд
-        if (now - c->last_ping_sent >= PING_INTERVAL) {
+        if (now - c->last_ping_sent >= PING_INTERVAL && c->timeout_state == CONNECTED) {
             send_line(c->fd, "PING");
             c->last_ping_sent = now;
         }
@@ -216,7 +217,7 @@ void process_client_timeout(client_t *c) {
             client_t *opponent = get_opponent_in_room(r, c);
             if (opponent) {
                 const char *status = (opponent->state == ST_READY) ? "READY" : "NOT_READY";
-                send_line(c->fd, "OPPONENT_INFO %s %s", opponent->nick, status);
+                send_line(opponent->fd, "OPPONENT_INFO %s %s", c->nick, status);
             }
             break;
         case ST_PLAYING:
