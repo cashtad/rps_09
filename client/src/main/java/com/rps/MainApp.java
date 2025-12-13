@@ -421,7 +421,6 @@ public class MainApp extends Application {
 
         try {
             networkManager.connect(currentHost, currentPort);
-            wait(500); // Небольшая пауза для установления соединения
             protocolHandler.sendHello(nickname);
             updateConnectionStatus(true);
         } catch (Exception ex) {
