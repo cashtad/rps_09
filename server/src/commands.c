@@ -227,10 +227,10 @@ void handle_reconnect(client_t *c, char* args) {
     c->timeout_state = CONNECTED;
     c->last_seen = time(NULL);
 
-    shutdown(old_client->fd, SHUT_RDWR);
 
     switch (c->state) {
         case ST_AUTH:
+            send_line(c->fd, "RECONNECT_OK CONNECTED");
             handle_list(c);
             break;
         case ST_IN_LOBBY:
@@ -251,6 +251,8 @@ void handle_reconnect(client_t *c, char* args) {
             if (opponent) {
                 send_line(c->fd, "RECONNECT_OK LOBBY %s %s", opponent->nick,
                          (opponent->state == ST_READY) ? "READY" : "NOT_READY");
+            } else {
+                send_line(c->fd, "RECONNECT_OK LOBBY");
             }
             break;
         case ST_PLAYING:
@@ -285,81 +287,11 @@ void handle_reconnect(client_t *c, char* args) {
 
             break;
         default:
+            send_line(c->fd, "RECONNECT_OK CONNECTED");
             break;
     }
 
-    // Обновляем указатели в комнате
-    if (c->room_id != -1) {
-        room_t *r = find_room_by_id(c->room_id);
-        if (r) {
-            if (r->player1 == old_client) {
-                r->player1 = c;
-            } else if (r->player2 == old_client) {
-                r->player2 = c;
-            }
-
-            // Уведомляем оппонента
-            client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
-            if (opponent) {
-                send_line(opponent->fd, "PLAYER_RECONNECTED %s", c->nick);
-            }
-
-            // Отправляем информацию о состоянии
-            if (c->state == ST_PLAYING && (r->state == RM_PLAYING || r->state == RM_PAUSED)) {
-                //Получаем информацию, был ли совершен ход до отключения
-                char performed_move = (r->player1 == c) ? r->move_p1 : r->move_p2;
-                send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
-                         r->score_p1, r->score_p2, r->round_number, performed_move);
-
-                // Возобновляем игру если была пауза
-                if (r->state == RM_PAUSED) {
-                    r->state = RM_PLAYING;
-                    r->round_start_time = time(NULL);
-
-                    if (opponent) {
-                        send_line(opponent->fd, "GAME_RESUMED %d %d %d",
-                                 r->round_number, r->score_p1, r->score_p2);
-                    }
-                    send_line(c->fd, "GAME_RESUMED %d %d %d",
-                             r->round_number, r->score_p1, r->score_p2);
-
-                    fprintf(stderr, "Game resumed in room %d\n", r->id);
-
-                    // ВАЖНО: Сохраняем состояние awaiting_moves при реконнекте
-                    // Если оба хода уже были сделаны до дисконнекта
-                    if (r->move_p1 != '\0' && r->move_p2 != '\0') {
-                        fprintf(stderr, "Both moves present, processing round immediately\n");
-                        r->awaiting_moves = 0;
-                        process_round_result(r);
-                    } else {
-                        // Ходов еще нет или есть только один - ждем
-                        r->awaiting_moves = 1;
-                        fprintf(stderr, "Waiting for moves: p1=%c p2=%c\n",
-                               r->move_p1 ? r->move_p1 : '-',
-                               r->move_p2 ? r->move_p2 : '-');
-                    }
-                }
-            } else if (c->state == ST_IN_LOBBY || c->state == ST_READY) {
-                if (opponent) {
-                    send_line(c->fd, "RECONNECT_OK LOBBY %s %s", opponent->nick,
-                             (opponent->state == ST_READY) ? "READY" : "NOT_READY");
-                } else {
-                    send_line(c->fd, "RECONNECT_OK LOBBY");
-                }
-            } else {
-                send_line(c->fd, "RECONNECT_OK CONNECTED");
-            }
-        } else {
-            send_line(c->fd, "RECONNECT_OK CONNECTED");
-        }
-    } else {
-        send_line(c->fd, "RECONNECT_OK CONNECTED");
-    }
-
-    // Закрываем старое соединение
-    close(old_client->fd);
-    unregister_client_without_lock(old_client);
-    free(old_client);
+    shutdown(old_client->fd, SHUT_RDWR);
 }
 
 void handle_line(client_t *c, char *line) {
