@@ -89,10 +89,6 @@ public class NetworkManager {
                 try {
                     if (socket != null) socket.close();
                 } catch (IOException ignored) {}
-
-                if (onDisconnected != null) {
-                    onDisconnected.run();
-                }
             }
         }, 0, 1, TimeUnit.SECONDS);
     }
@@ -104,7 +100,7 @@ public class NetworkManager {
     }
 
     public void send(String message) {
-        if (executor == null || executor.isShutdown()) {
+        if (executor == null || executor.isShutdown() || isConnected()) {
             System.out.println("Cannot send, executor is shut down: " + message);
             return;
         }
