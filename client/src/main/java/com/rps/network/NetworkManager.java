@@ -227,9 +227,11 @@ public final class NetworkManager {
             closeReaderThread();
             closeQuietly(reader);
             closeQuietly(writer);
+            LOG.info("Closed reader and writer.");
             reader = null;
             writer = null;
             closeSocket();
+            LOG.info("Closed socket.");
             shutdownExecutor(writerExecutor);
             writerExecutor = null;
             shutdownExecutor(watchdogExecutor);
