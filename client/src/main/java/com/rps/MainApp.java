@@ -121,7 +121,6 @@ public class MainApp extends Application {
     }
 
     private void setupReconnectionHandlers() {
-        // При разрыве соединения
         networkManager.setOnDisconnected(() -> {
             Platform.runLater(() -> updateConnectionStatus(false));
 
@@ -129,6 +128,23 @@ public class MainApp extends Application {
                 System.out.println("Connection lost! Starting auto-reconnect...");
                 reconnectionManager.startAutoReconnect(playerProfile.getToken());
             }
+        });
+
+        networkManager.setOnSoftTimeout(() -> {
+            if (playerProfile == null || playerProfile.getToken() == null || reconnectionManager.isReconnecting()) {
+                return;
+            }
+            Platform.runLater(() -> updateConnectionStatus(false));
+            reconnectionManager.startAutoReconnect(playerProfile.getToken());
+        });
+
+        networkManager.setOnHardTimeout(() -> {
+            reconnectionManager.abortAutoReconnect();
+            networkManager.disconnect();
+            Platform.runLater(() -> {
+                updateConnectionStatus(false);
+                showManualReconnectScene();
+            });
         });
 
         // Если автоматическое переподключение не удалось

@@ -40,7 +40,7 @@ public final class ReconnectionManager {
                                ProtocolHandler protocolHandler,
                                EventBus eventBus) {
         this(networkManager, protocolHandler, eventBus, Runnable::run,
-                Duration.ofSeconds(1), Duration.ofSeconds(5));
+                Duration.ofSeconds(1), Duration.ofSeconds(45));
     }
 
     public ReconnectionManager(NetworkManager networkManager,
@@ -100,6 +100,12 @@ public final class ReconnectionManager {
     public boolean isReconnecting() {
         State current = state.get();
         return current == State.AUTO || current == State.MANUAL;
+    }
+
+    public void abortAutoReconnect() {
+        cancelAutoTask();
+        attempts.set(0);
+        state.set(State.IDLE);
     }
 
     public void shutdown() {

@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,29 +25,40 @@ import java.util.logging.Logger;
 public final class NetworkManager {
     private static final Logger LOG = Logger.getLogger(NetworkManager.class.getName());
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(6);
+    private static final Duration DEFAULT_HARD_TIMEOUT = Duration.ofSeconds(45);
 
-    private final Duration inactivityTimeout;
+    private final Duration softTimeout;
+    private final Duration hardTimeout;
     private final Object lifecycleLock = new Object();
     private final Object writerLock = new Object();
     private final AtomicBoolean intentionalClose = new AtomicBoolean(false);
+    private final AtomicBoolean softTimeoutTriggered = new AtomicBoolean(false);
+    private final AtomicBoolean hardTimeoutTriggered = new AtomicBoolean(false);
     private final AtomicLong lastMessageAt = new AtomicLong();
 
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
     private ExecutorService writerExecutor;
-    private ExecutorService watchdogExecutor;
+    private ScheduledExecutorService watchdogExecutor;
     private Thread readerThread;
 
     private Consumer<String> onMessageReceived;
     private Runnable onDisconnected;
+    private Runnable onSoftTimeout;
+    private Runnable onHardTimeout;
 
     public NetworkManager() {
-        this(DEFAULT_TIMEOUT);
+        this(DEFAULT_TIMEOUT, DEFAULT_HARD_TIMEOUT);
     }
 
-    public NetworkManager(Duration inactivityTimeout) {
-        this.inactivityTimeout = inactivityTimeout != null ? inactivityTimeout : DEFAULT_TIMEOUT;
+    public NetworkManager(Duration softTimeout) {
+        this(softTimeout, DEFAULT_HARD_TIMEOUT);
+    }
+
+    public NetworkManager(Duration softTimeout, Duration hardTimeout) {
+        this.softTimeout = softTimeout != null ? softTimeout : DEFAULT_TIMEOUT;
+        this.hardTimeout = hardTimeout != null ? hardTimeout : DEFAULT_HARD_TIMEOUT;
     }
 
     public void connect(String host, int port) throws IOException {
@@ -61,8 +73,9 @@ public final class NetworkManager {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
             writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
             writerExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("network-writer"));
-            watchdogExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("network-watchdog"));
+            watchdogExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("network-watchdog"));
             lastMessageAt.set(System.nanoTime());
+            resetTimeoutFlags();
             intentionalClose.set(false);
             startReaderThread();
             startWatchdog();
@@ -90,6 +103,14 @@ public final class NetworkManager {
 
     public void setOnDisconnected(Runnable handler) {
         this.onDisconnected = handler;
+    }
+
+    public void setOnSoftTimeout(Runnable handler) {
+        this.onSoftTimeout = handler;
+    }
+
+    public void setOnHardTimeout(Runnable handler) {
+        this.onHardTimeout = handler;
     }
 
     public boolean isConnected() {
@@ -125,6 +146,7 @@ public final class NetworkManager {
             String line;
             while (!Thread.currentThread().isInterrupted() && reader != null && (line = reader.readLine()) != null) {
                 lastMessageAt.set(System.nanoTime());
+                resetTimeoutFlags();
                 Consumer<String> handler = onMessageReceived;
                 if (handler != null) {
                     handler.accept(line);
@@ -136,6 +158,7 @@ public final class NetworkManager {
             }
         } finally {
             boolean wasIntentional = intentionalClose.getAndSet(false);
+            resetTimeoutFlags();
             disconnectInternal();
             if (!wasIntentional) {
                 Runnable handler = onDisconnected;
@@ -147,15 +170,35 @@ public final class NetworkManager {
     }
 
     private void startWatchdog() {
-        if (watchdogExecutor == null) {
+        shutdownExecutor(watchdogExecutor);
+        watchdogExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("network-watchdog"));
+        watchdogExecutor.scheduleAtFixedRate(this::checkInactivity, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void checkInactivity() {
+        if (!isConnected()) {
             return;
         }
-        long period = Math.max(500, inactivityTimeout.toMillis() / 2);
-        watchdogExecutor.execute(() -> {});
-        ((ExecutorService) watchdogExecutor).shutdown();
-        watchdogExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("network-watchdog"));
-        watchdogExecutor.submit(() -> {});
-        ((ExecutorService) watchdogExecutor).shutdown();
+        Duration elapsed = Duration.ofNanos(System.nanoTime() - lastMessageAt.get());
+        if (!softTimeoutTriggered.get() && elapsed.compareTo(softTimeout) >= 0) {
+            softTimeoutTriggered.set(true);
+            Runnable handler = onSoftTimeout;
+            if (handler != null) {
+                handler.run();
+            }
+        }
+        if (!hardTimeoutTriggered.get() && elapsed.compareTo(hardTimeout) >= 0) {
+            hardTimeoutTriggered.set(true);
+            Runnable handler = onHardTimeout;
+            if (handler != null) {
+                handler.run();
+            }
+        }
+    }
+
+    private void resetTimeoutFlags() {
+        softTimeoutTriggered.set(false);
+        hardTimeoutTriggered.set(false);
     }
 
     private void forceCloseSocket() {
@@ -172,6 +215,7 @@ public final class NetworkManager {
 
     private void disconnectInternal() {
         synchronized (lifecycleLock) {
+            resetTimeoutFlags();
             closeReaderThread();
             closeQuietly(reader);
             closeQuietly(writer);
