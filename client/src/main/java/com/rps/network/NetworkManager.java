@@ -223,7 +223,7 @@ public final class NetworkManager {
     private void disconnectInternal() {
         synchronized (lifecycleLock) {
             LOG.info("Disconnecting from server...");
-            resetTimeoutFlags();
+//            resetTimeoutFlags();
             closeReaderThread();
             closeQuietly(reader);
             closeQuietly(writer);
