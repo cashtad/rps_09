@@ -225,12 +225,12 @@ public final class NetworkManager {
             LOG.info("Disconnecting from server...");
 //            resetTimeoutFlags();
             closeReaderThread();
+            closeSocket();
             closeQuietly(reader);
             closeQuietly(writer);
             LOG.info("Closed reader and writer.");
             reader = null;
             writer = null;
-            closeSocket();
             LOG.info("Closed socket.");
             shutdownExecutor(writerExecutor);
             writerExecutor = null;
@@ -260,6 +260,8 @@ public final class NetworkManager {
     private void closeSocket() {
         if (socket != null) {
             try {
+                socket.shutdownInput();
+                socket.shutdownOutput();
                 socket.close();
             } catch (IOException ignored) {
             } finally {
