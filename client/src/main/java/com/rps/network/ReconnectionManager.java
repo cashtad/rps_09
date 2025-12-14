@@ -60,6 +60,7 @@ public final class ReconnectionManager {
     }
 
     public void startAutoReconnect(String token) {
+        LOG.info("Starting automatic reconnection attempts");
         ensureConnectionInfo();
         Objects.requireNonNull(token, "token");
         if (!state.compareAndSet(State.IDLE, State.AUTO)) {
@@ -114,6 +115,7 @@ public final class ReconnectionManager {
     }
 
     private void autoAttempt() {
+        LOG.info("Automatic reconnection attempt");
         if (state.get() != State.AUTO) {
             return;
         }
