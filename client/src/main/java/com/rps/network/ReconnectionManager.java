@@ -1,133 +1,83 @@
 package com.rps.network;
 
-import javafx.application.Platform;
-import java.util.concurrent.*;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class ReconnectionManager {
+public final class ReconnectionManager {
+    private static final Logger LOG = Logger.getLogger(ReconnectionManager.class.getName());
+
     private final NetworkManager networkManager;
     private final ProtocolHandler protocolHandler;
     private final EventBus eventBus;
+    private final ScheduledExecutorService scheduler;
+    private final Executor callbackExecutor;
+    private final Duration interval;
+    private final Duration autoWindow;
+    private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
+    private final AtomicInteger attempts = new AtomicInteger();
+    private final Object connectLock = new Object();
 
-    private ScheduledExecutorService scheduler;
-    private ScheduledFuture<?> reconnectionTask;
-    private volatile boolean isReconnecting = false;
-    private volatile boolean reconnectionSuccess = false;
-    private int reconnectAttempts = 0;
-    private static final int MAX_AUTO_RECONNECT_SECONDS = 5;
-    private static final int RECONNECT_INTERVAL_MS = 1000;
-
+    private ScheduledFuture<?> autoTask;
     private Runnable onAutoReconnectFailed;
     private Consumer<String> onReconnectSuccess;
-    private String lastToken;
-    private String host;
-    private int port;
+    private volatile String lastToken;
+    private volatile String host;
+    private volatile int port;
 
-    public ReconnectionManager(NetworkManager networkManager, ProtocolHandler protocolHandler, EventBus eventBus) {
-        this.networkManager = networkManager;
-        this.protocolHandler = protocolHandler;
-        this.eventBus = eventBus;
-        setupEventHandlers();
+    public ReconnectionManager(NetworkManager networkManager,
+                               ProtocolHandler protocolHandler,
+                               EventBus eventBus) {
+        this(networkManager, protocolHandler, eventBus, Runnable::run,
+                Duration.ofSeconds(1), Duration.ofSeconds(5));
     }
 
-    private void setupEventHandlers() {
-        // Успешное переподключение
-        eventBus.subscribe("RECONNECT_OK", event -> {
-            reconnectionSuccess = true;
-            stopReconnecting();
-
-            String state = event.getPart(1);
-            Platform.runLater(() -> {
-                if (onReconnectSuccess != null) {
-                    if ("GAME".equals(state) && event.getPartsCount() >= 5) {
-                        String gameInfo = event.getPart(2) + " " + event.getPart(3) + " " + event.getPart(4);
-                        onReconnectSuccess.accept("GAME " + gameInfo);
-                    } else if ("LOBBY".equals(state) && event.getPartsCount() >= 3) {
-                        // Формат: RECONNECT_OK LOBBY opponent_nick status
-                        String opponentNick = event.getPart(2);
-                        String opponentStatus = event.getPartsCount() >= 4 ? event.getPart(3) : "NOT_READY";
-                        onReconnectSuccess.accept("LOBBY " + opponentNick + " " + opponentStatus);
-                    } else if ("LOBBY".equals(state)) {
-                        onReconnectSuccess.accept("LOBBY NONE");
-                    } else {
-                        onReconnectSuccess.accept(state);
-                    }
-                }
-            });
-        });
-
-        // Неверный токен
-        eventBus.subscribe("ERR", event -> {
-            String errorCode = event.getPart(1);
-            String errorMsg = event.getPartsCount() > 2 ? event.getPart(2) : "";
-
-            if (isReconnecting && "INVALID_TOKEN".equals(errorMsg)) {
-                stopReconnecting();
-                Platform.runLater(() -> {
-                    if (onAutoReconnectFailed != null) {
-                        onAutoReconnectFailed.run();
-                    }
-                });
-            }
-        });
+    public ReconnectionManager(NetworkManager networkManager,
+                               ProtocolHandler protocolHandler,
+                               EventBus eventBus,
+                               Executor callbackExecutor,
+                               Duration interval,
+                               Duration autoWindow) {
+        this.networkManager = Objects.requireNonNull(networkManager, "networkManager");
+        this.protocolHandler = Objects.requireNonNull(protocolHandler, "protocolHandler");
+        this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
+        this.callbackExecutor = callbackExecutor != null ? callbackExecutor : Runnable::run;
+        this.interval = interval != null ? interval : Duration.ofSeconds(1);
+        this.autoWindow = autoWindow != null ? autoWindow : Duration.ofSeconds(5);
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("reconnect"));
+        registerEventHandlers();
     }
 
     public void startAutoReconnect(String token) {
-        if (isReconnecting) return;
-
-        this.lastToken = token;
-        this.isReconnecting = true;
-        this.reconnectionSuccess = false;
-        this.reconnectAttempts = 0;
-
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-
-        reconnectionTask = scheduler.scheduleAtFixedRate(() -> {
-            if (reconnectionSuccess) {
-                stopReconnecting();
-                return;
-            }
-
-            long elapsedSeconds = (reconnectAttempts * RECONNECT_INTERVAL_MS) / 1000;
-            if (elapsedSeconds >= MAX_AUTO_RECONNECT_SECONDS) {
-                stopReconnecting();
-                Platform.runLater(() -> {
-                    if (onAutoReconnectFailed != null) {
-                        onAutoReconnectFailed.run();
-                    }
-                });
-                return;
-            }
-
-            attemptReconnect();
-            reconnectAttempts++;
-
-        }, 0, RECONNECT_INTERVAL_MS, TimeUnit.MILLISECONDS);
-    }
-
-    private void attemptReconnect() {
-        try {
-            System.out.println("Attempting reconnection to " + host + ":" + port + "... (attempt " + (reconnectAttempts + 1) + ")");
-            networkManager.connect(host, port);
-            protocolHandler.sendReconnect(lastToken);
-        } catch (Exception e) {
-            System.out.println("Reconnection attempt failed: " + e.getMessage());
+        ensureConnectionInfo();
+        Objects.requireNonNull(token, "token");
+        if (!state.compareAndSet(State.IDLE, State.AUTO)) {
+            return;
         }
+        this.lastToken = token;
+        attempts.set(0);
+        cancelAutoTask();
+        autoTask = scheduler.scheduleAtFixedRate(this::autoAttempt, 0L, interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public void manualReconnect(String token) {
+        ensureConnectionInfo();
+        Objects.requireNonNull(token, "token");
+        cancelAutoTask();
         this.lastToken = token;
+        state.set(State.MANUAL);
         attemptReconnect();
-    }
-
-    private void stopReconnecting() {
-        isReconnecting = false;
-        if (reconnectionTask != null) {
-            reconnectionTask.cancel(false);
-        }
-        if (scheduler != null) {
-            scheduler.shutdown();
-        }
     }
 
     public void setOnAutoReconnectFailed(Runnable handler) {
@@ -139,11 +89,142 @@ public class ReconnectionManager {
     }
 
     public void setConnectionInfo(String host, int port) {
+        Objects.requireNonNull(host, "host");
+        if (host.isBlank() || port <= 0 || port > 65_535) {
+            throw new IllegalArgumentException("Invalid connection info");
+        }
         this.host = host;
         this.port = port;
     }
 
     public boolean isReconnecting() {
-        return isReconnecting;
+        State current = state.get();
+        return current == State.AUTO || current == State.MANUAL;
+    }
+
+    public void shutdown() {
+        cancelAutoTask();
+        scheduler.shutdownNow();
+    }
+
+    private void autoAttempt() {
+        if (state.get() != State.AUTO) {
+            return;
+        }
+        long elapsed = attempts.get() * interval.toMillis();
+        if (elapsed >= autoWindow.toMillis()) {
+            failAutoReconnect();
+            return;
+        }
+        attempts.incrementAndGet();
+        attemptReconnect();
+    }
+
+    private void attemptReconnect() {
+        synchronized (connectLock) {
+            try {
+                networkManager.disconnect();
+                networkManager.connect(host, port);
+                protocolHandler.sendReconnect(lastToken);
+                LOG.info(() -> "Attempting reconnection to " + host + ":" + port);
+            } catch (IOException ex) {
+                LOG.log(Level.WARNING, "Reconnection attempt failed", ex);
+            }
+        }
+    }
+
+    private void registerEventHandlers() {
+        eventBus.subscribe("RECONNECT_OK", this::handleReconnectOk);
+        eventBus.subscribe("ERR", this::handleError);
+    }
+
+    private void handleReconnectOk(ServerEvent event) {
+        cancelAutoTask();
+        state.set(State.IDLE);
+        callbackExecutor.execute(() -> {
+            Consumer<String> handler = onReconnectSuccess;
+            if (handler != null) {
+                handler.accept(parseServerState(event));
+            }
+        });
+    }
+
+    private void handleError(ServerEvent event) {
+        String errorMsg = event.getPart(2);
+        if (!"INVALID_TOKEN".equals(errorMsg)) {
+            return;
+        }
+        State previous = state.getAndSet(State.IDLE);
+        cancelAutoTask();
+        if (previous == State.AUTO) {
+            callbackExecutor.execute(() -> {
+                if (onAutoReconnectFailed != null) {
+                    onAutoReconnectFailed.run();
+                }
+            });
+        }
+    }
+
+    private String parseServerState(ServerEvent event) {
+        String statePart = event.getPart(1);
+        if ("GAME".equals(statePart) && event.getPartsCount() >= 5) {
+            return "GAME " + event.getPart(2) + " " + event.getPart(3) + " " + event.getPart(4);
+        }
+        if ("LOBBY".equals(statePart)) {
+            if (event.getPartsCount() >= 4) {
+                return "LOBBY " + event.getPart(2) + " " + event.getPart(3);
+            }
+            if (event.getPartsCount() >= 3) {
+                return "LOBBY " + event.getPart(2);
+            }
+            return "LOBBY NONE";
+        }
+        return statePart != null ? statePart : "UNKNOWN";
+    }
+
+    private void failAutoReconnect() {
+        cancelAutoTask();
+        state.set(State.IDLE);
+        callbackExecutor.execute(() -> {
+            if (onAutoReconnectFailed != null) {
+                onAutoReconnectFailed.run();
+            }
+        });
+    }
+
+    private void cancelAutoTask() {
+        ScheduledFuture<?> task = autoTask;
+        if (task != null) {
+            task.cancel(true);
+            autoTask = null;
+        }
+    }
+
+    private void ensureConnectionInfo() {
+        if (host == null || port <= 0) {
+            throw new IllegalStateException("Connection info is not set");
+        }
+    }
+
+    private enum State {
+        IDLE,
+        AUTO,
+        MANUAL
+    }
+
+    private static final class NamedThreadFactory implements ThreadFactory {
+        private final String prefix;
+        private int index = 0;
+
+        private NamedThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread thread = new Thread(r, prefix + "-" + index++);
+            thread.setDaemon(true);
+            return thread;
+        }
     }
 }

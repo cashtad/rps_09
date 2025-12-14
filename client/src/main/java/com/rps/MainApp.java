@@ -62,7 +62,7 @@ public class MainApp extends Application {
 
         // Инициализируем компоненты
         networkManager = new NetworkManager();
-        eventBus = new EventBus();
+        eventBus = EventBus.createJavaFxBus();
         protocolHandler = new ProtocolHandler(networkManager, eventBus);
         reconnectionManager = new ReconnectionManager(networkManager, protocolHandler, eventBus);
 
