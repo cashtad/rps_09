@@ -85,6 +85,7 @@ public final class NetworkManager {
     }
 
     public void disconnect() {
+        LOG.info("Disconnecting from server (intentional)...");
         intentionalClose.set(true);
         disconnectInternal();
     }
@@ -221,6 +222,7 @@ public final class NetworkManager {
 
     private void disconnectInternal() {
         synchronized (lifecycleLock) {
+            LOG.info("Disconnecting from server...");
             resetTimeoutFlags();
             closeReaderThread();
             closeQuietly(reader);
@@ -232,6 +234,7 @@ public final class NetworkManager {
             writerExecutor = null;
             shutdownExecutor(watchdogExecutor);
             watchdogExecutor = null;
+            LOG.info("Disconnected.");
         }
     }
 

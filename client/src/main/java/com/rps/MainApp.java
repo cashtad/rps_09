@@ -878,7 +878,7 @@ public class MainApp extends Application {
                     connectionStatusLabel.setText("● Connected");
                     connectionStatusLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: green;");
                 } else {
-                    connectionStatusLabel.setText("● Connection lost");
+                    connectionStatusLabel.setText("● Connection lost, reconnecting...");
                     connectionStatusLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: red;");
                 }
             });

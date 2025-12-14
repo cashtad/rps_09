@@ -104,6 +104,7 @@ public final class ReconnectionManager {
     }
 
     public void abortAutoReconnect() {
+        LOG.info("Aborting automatic reconnection attempts");
         cancelAutoTask();
         attempts.set(0);
         state.set(State.IDLE);
