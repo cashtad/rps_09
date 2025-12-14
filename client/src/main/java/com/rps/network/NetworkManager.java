@@ -66,7 +66,9 @@ public final class NetworkManager {
         if (port <= 0 || port > 65_535) {
             throw new IllegalArgumentException("port");
         }
+        LOG.info("Connecting to " + host + ":" + port);
         synchronized (lifecycleLock) {
+            LOG.info("Establishing socket connection...");
             disconnectInternal();
             socket = new Socket();
             socket.connect(new InetSocketAddress(host, port), 1000);
@@ -176,7 +178,9 @@ public final class NetworkManager {
     }
 
     private void checkInactivity() {
+        LOG.info("Checking for inactivity...");
         if (!isConnected()) {
+            LOG.info("Socket not connected, skipping inactivity check");
             return;
         }
         Duration elapsed = Duration.ofNanos(System.nanoTime() - lastMessageAt.get());
@@ -184,6 +188,7 @@ public final class NetworkManager {
             softTimeoutTriggered.set(true);
             Runnable handler = onSoftTimeout;
             if (handler != null) {
+                LOG.info("Soft timeout triggered after " + elapsed.toSeconds() + " seconds");
                 handler.run();
             }
         }
@@ -191,6 +196,7 @@ public final class NetworkManager {
             hardTimeoutTriggered.set(true);
             Runnable handler = onHardTimeout;
             if (handler != null) {
+                LOG.info("Hard timeout triggered after " + elapsed.toSeconds() + " seconds");
                 handler.run();
             }
         }

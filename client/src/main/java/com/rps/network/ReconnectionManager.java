@@ -129,10 +129,11 @@ public final class ReconnectionManager {
     private void attemptReconnect() {
         synchronized (connectLock) {
             try {
+                LOG.info(() -> "Attempting reconnection to " + host + ":" + port);
                 networkManager.disconnect();
                 networkManager.connect(host, port);
                 protocolHandler.sendReconnect(lastToken);
-                LOG.info(() -> "Attempting reconnection to " + host + ":" + port);
+
             } catch (IOException ex) {
                 LOG.log(Level.WARNING, "Reconnection attempt failed", ex);
             }
