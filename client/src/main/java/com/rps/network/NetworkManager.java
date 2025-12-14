@@ -274,9 +274,9 @@ public final class NetworkManager {
             try {
                 closeable.close();
             } catch (IOException ignored) {
-                LOG.warning("Error closing resource: " + ignored.getMessage());
             }
         }
+        LOG.info("Closed resource: " + closeable);
     }
 
     private void shutdownExecutor(ExecutorService executor) {
