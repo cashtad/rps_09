@@ -269,10 +269,12 @@ public final class NetworkManager {
     }
 
     private void closeQuietly(Closeable closeable) {
+        LOG.info("Closing resource: " + closeable);
         if (closeable != null) {
             try {
                 closeable.close();
             } catch (IOException ignored) {
+                LOG.warning("Error closing resource: " + ignored.getMessage());
             }
         }
     }
