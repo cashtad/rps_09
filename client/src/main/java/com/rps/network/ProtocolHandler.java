@@ -22,7 +22,6 @@ public final class ProtocolHandler {
     private final EventBus eventBus;
     private final RoomListAssembler roomListAssembler = new RoomListAssembler();
 
-    private volatile String token;
 
     /**
      * Creates a new protocol handler and attaches it to given network manager and event bus.
@@ -58,9 +57,6 @@ public final class ProtocolHandler {
         String command = tokens.get(0);
         ServerEvent event = new ServerEvent(command, tokens, rawMessage);
         eventBus.publish(event);
-        if ("WELCOME".equals(command) && tokens.size() > 1) {
-            token = tokens.get(1);
-        }
     }
 
     /**
@@ -141,24 +137,6 @@ public final class ProtocolHandler {
      */
     public void sendReconnect(String reconnectToken) {
         networkManager.send("RECONNECT " + reconnectToken);
-    }
-
-    /**
-     * Returns last known token obtained from WELCOME command.
-     *
-     * @return token string or null if not yet assigned.
-     */
-    public String getToken() {
-        return token;
-    }
-
-    /**
-     * Returns event bus used by this protocol handler.
-     *
-     * @return {@link EventBus} instance.
-     */
-    public EventBus getEventBus() {
-        return eventBus;
     }
 
     /**
@@ -249,7 +227,7 @@ public final class ProtocolHandler {
         }
 
         private static void flush(StringBuilder current, List<String> tokens) {
-            if (current.length() > 0) {
+            if (!current.isEmpty()) {
                 tokens.add(current.toString());
                 current.setLength(0);
             }
