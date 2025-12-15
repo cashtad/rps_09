@@ -53,7 +53,7 @@ public final class ReconnectionManager {
         this.protocolHandler = Objects.requireNonNull(protocolHandler, "protocolHandler");
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
         this.callbackExecutor = callbackExecutor != null ? callbackExecutor : Runnable::run;
-        this.interval = interval != null ? interval : Duration.ofSeconds(1);
+        this.interval = interval != null ? interval : Duration.ofSeconds(2);
         this.autoWindow = autoWindow != null ? autoWindow : Duration.ofSeconds(5);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("reconnect"));
         registerEventHandlers();

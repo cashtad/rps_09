@@ -301,11 +301,12 @@ public class MainApp extends Application {
             int roundNumber = Integer.parseInt(event.getPart(1));
             int score1 = Integer.parseInt(event.getPart(2));
             int score2 = Integer.parseInt(event.getPart(3));
-            char performedMove = event.getPart(4).charAt(0);
+            char performedMove = event.getParts().length >=5 ? event.getPart(4).charAt(0) : 'X';
+
 
             Platform.runLater(() -> {
                 updateScores(score1, score2);
-                if (performedMove == '\0') {
+                if (performedMove == 'X') {
                     enableMoveButtons();
                     resultLabel.setText("Game resumed - Make your move!");
                 } else {

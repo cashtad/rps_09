@@ -63,6 +63,8 @@ int main(int argc, char **argv) {
         c->room_id = -1;
         c->last_seen = time(NULL);
         c->timeout_state = CONNECTED;
+        c->is_replaced = 0;
+        c->last_ping_sent = time(NULL);
         gen_token(c->token);
 
         if (register_client(c) != 0) {
@@ -119,10 +121,9 @@ void *client_worker(void *arg) {
     while (fgets(buf, sizeof(buf), f) != NULL) {
         handle_line(c, buf);
     }
-
-    fprintf(stderr, "Client %s fd:%d disconnected\n", c->nick, c->fd);
     close(c->fd);
     pthread_mutex_lock(&global_lock);
+    fprintf(stderr, "Client %s fd:%d disconnected\n", c->nick, c->fd);
     process_client_hard_disconnection(c);
     unregister_client_without_lock(c);
     pthread_mutex_unlock(&global_lock);
@@ -131,6 +132,12 @@ void *client_worker(void *arg) {
 }
 
 void process_client_hard_disconnection(client_t *c) {
+    printf("Processing hard disconnect for client %s fd%d\n", c->nick, c->fd);
+    // Если клиент заменён через RECONNECT - ничего не делаем
+    if (c->is_replaced) {
+        printf("Client %s was replaced, skipping cleanup\n", c->nick);
+        return;
+    }
     switch (c->state) {
         case ST_IN_LOBBY:
         case ST_READY:

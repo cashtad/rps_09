@@ -46,6 +46,7 @@ typedef struct {
     time_t last_seen;        // обновляется при любом входящем сообщении
     time_t last_ping_sent;   // когда отправили последний PING
     client_timeout_t timeout_state; // для статуса подключения
+    int is_replaced;
     pthread_t thread;
 } client_t;
 

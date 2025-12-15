@@ -121,6 +121,14 @@ int remove_player_from_room(client_t *c, room_t *r) {
 }
 
 int was_replaced(room_t *r, client_t *c) {
-    return r->player1 == c || r->player2 == c;
+    if (!r || !c) return 0;
+
+    if (r->player1) {
+        if (r->player1 == c) return 0;
+    }
+    if (r->player2) {
+        if (r->player2 == c) return 0;
+    }
+    return 1;
 }
 

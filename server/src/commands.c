@@ -227,6 +227,7 @@ void handle_reconnect(client_t *c, char* args) {
     c->room_id = old_client->room_id;
     c->timeout_state = CONNECTED;
     c->last_seen = time(NULL);
+    old_client->is_replaced = 1;
 
 
     switch (c->state) {
@@ -243,10 +244,10 @@ void handle_reconnect(client_t *c, char* args) {
             // заменить старого клиента на нового
             if (r->player1 == old_client) {
                 r->player1 = c;
-                printf("Replaced player1 fd%d by fd%d", old_client->fd, c->fd);
+                printf("Replaced player1 fd%d by fd%d\n", old_client->fd, c->fd);
             } else if (r->player2 == old_client){
                 r->player2 = c;
-                printf("Replaced player2 fd%d by fd%d", old_client->fd, c->fd);
+                printf("Replaced player2 fd%d by fd%d\n", old_client->fd, c->fd);
             }
 
             send_line(c->fd, "RECONNECT_OK LOBBY");
@@ -273,6 +274,9 @@ void handle_reconnect(client_t *c, char* args) {
             client_t *opponent = get_opponent_in_room(room, c);
             //Получаем информацию, был ли совершен ход до отключения
             char performed_move = (room->player1 == c) ? room->move_p1 : room->move_p2;
+            if (performed_move != '\0') {
+                performed_move = 'X';
+            }
             send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
                      room->score_p1, room->score_p2, room->round_number, performed_move);
 
