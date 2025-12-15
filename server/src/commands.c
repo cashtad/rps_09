@@ -204,6 +204,7 @@ void handle_get_opponent(client_t *c) {
 
 void handle_reconnect(client_t *c, char* args) {
     char *token = strtok(args, " ");
+    printf("Handling reconnect for fd%d token %s\n", c->fd, token);
     if (!token) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_token");
         shutdown(c->fd, SHUT_RDWR);
@@ -242,8 +243,10 @@ void handle_reconnect(client_t *c, char* args) {
             // заменить старого клиента на нового
             if (r->player1 == old_client) {
                 r->player1 = c;
-            } else {
+                printf("Replaced player1 fd%d by fd%d", old_client->fd, c->fd);
+            } else if (r->player2 == old_client){
                 r->player2 = c;
+                printf("Replaced player2 fd%d by fd%d", old_client->fd, c->fd);
             }
 
             send_line(c->fd, "RECONNECT_OK LOBBY");

@@ -136,6 +136,7 @@ void process_client_hard_disconnection(client_t *c) {
         case ST_READY:
             room_t *r = find_room_by_id(c->room_id);
             if (r && !was_replaced(r,c)) {
+                printf("Removing player %s fd%d from room %s\n", c->nick, c->fd,r->name);
                 remove_player_from_room(c, r);
             }
             break;

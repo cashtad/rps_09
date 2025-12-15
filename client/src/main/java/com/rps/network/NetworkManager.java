@@ -95,6 +95,7 @@ public final class NetworkManager {
             LOG.warning("Writer executor unavailable, dropping message");
             return;
         }
+        LOG.info("CLIENT: " + message);
         executor.execute(() -> writeSafely(message));
     }
 
