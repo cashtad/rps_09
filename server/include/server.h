@@ -26,6 +26,8 @@
 #define PING_INTERVAL 3      // раз в 5 секунд
 #define CLIENT_TIMEOUT_SOFT 6    // если 15 секунд нет PONG → кик
 #define CLIENT_TIMEOUT_HARD 45    // если 15 секунд нет PONG → кик
+#define DEFAULT_BIND_IP "0.0.0.0"
+#define DEFAULT_BIND_PORT 2500
 #define MAX_INVALID_MSG_STREAK 3
 
 typedef enum {

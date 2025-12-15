@@ -1,6 +1,7 @@
 // server/src/server.c
 #define _GNU_SOURCE
 
+#include <arpa/inet.h>
 #include "../include/server.h"
 #include "../include/client.h"
 #include "../include/room.h"
@@ -12,8 +13,26 @@ client_t *clients[MAX_CLIENTS];
 room_t rooms[MAX_ROOMS];
 
 int main(int argc, char **argv) {
-    const char *port = "2500";
-    if (argc >= 2) port = argv[1];
+    const char *bind_ip = DEFAULT_BIND_IP;
+    int port = DEFAULT_BIND_PORT;
+
+    if (argc >= 2 && argv[1][0] != '\0') {
+        struct in_addr tmp_addr;
+        if (inet_pton(AF_INET, argv[1], &tmp_addr) == 1) {
+            bind_ip = argv[1];
+        } else {
+            fprintf(stderr, "Invalid IP '%s', using default %s\n", argv[1], DEFAULT_BIND_IP);
+        }
+    }
+    if (argc >= 3 && argv[2][0] != '\0') {
+        char *endptr = NULL;
+        long parsed_port = strtol(argv[2], &endptr, 10);
+        if (endptr && *endptr == '\0' && parsed_port > 0 && parsed_port <= 65535) {
+            port = (int)parsed_port;
+        } else {
+            fprintf(stderr, "Invalid port '%s', using default %d\n", argv[2], DEFAULT_BIND_PORT);
+        }
+    }
 
     struct sockaddr_in servaddr;
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -24,8 +43,11 @@ int main(int argc, char **argv) {
 
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(atoi(port));
+    if (inet_pton(AF_INET, bind_ip, &servaddr.sin_addr) != 1) {
+        inet_pton(AF_INET, DEFAULT_BIND_IP, &servaddr.sin_addr);
+        bind_ip = DEFAULT_BIND_IP;
+    }
+    servaddr.sin_port = htons(port);
 
     if (bind(listen_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         perror("bind"); exit(1);
@@ -34,7 +56,7 @@ int main(int argc, char **argv) {
         perror("listen"); exit(1);
     }
 
-    fprintf(stderr, "Server listening on 0.0.0.0:%s\n", port);
+    fprintf(stderr, "Server listening on %s:%d\n", bind_ip, port);
 
     for (int i = 0; i < MAX_CLIENTS; i++) clients[i] = NULL;
     init_rooms();
