@@ -661,12 +661,19 @@ public class MainApp extends Application {
         Platform.runLater(() -> {
             stopTimer();
             // TODO: здесь нужно расширить обработку. GAME_END opponent_left
-            String message = winner.equals(playerProfile.getName())
-                    ? "Congratulations! You won the game!"
-                    : "Game Over! " + winner + " won!";
+            if (winner.equals("opponent_left")) {
+                disableMoveButtons();
+                resultLabel.setText("Game ended - opponent left the game.");
+                showAlert("Game Ended", "Opponent has left the game. You win by default!");
+                protocolHandler.requestRooms();
+            } else {
+                String message = winner.equals(playerProfile.getName())
+                        ? "Congratulations! You won the game!"
+                        : "Game Over! " + winner + " won!";
 
-            showAlert("Game Finished", message);
-            protocolHandler.requestRooms();
+                showAlert("Game Finished", message);
+                protocolHandler.requestRooms();
+            }
         });
     }
 
@@ -816,15 +823,6 @@ public class MainApp extends Application {
         Label serverInfoLabel = new Label("Server: " + currentHost + ":" + currentPort);
         serverInfoLabel.setStyle("-fx-font-size: 12; -fx-text-fill: gray;");
 
-        Button reconnectButton = new Button("Reconnect");
-        reconnectButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
-        reconnectButton.setOnAction(e -> {
-            if (playerProfile != null && playerProfile.getToken() != null) {
-                reconnectionManager.manualReconnect(playerProfile.getToken());
-//                reconnectButton.setDisable(true);
-                messageLabel.setText("Reconnecting to " + currentHost + ":" + currentPort + "...");
-            }
-        });
 
         Button resetButton = new Button("Start Over");
         resetButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
@@ -847,7 +845,6 @@ public class MainApp extends Application {
                 new Label("Name:"), nameField,
                 new Label("Server IP:"), hostField,
                 new Label("Port:"), portField,
-                connectButton,
                 statusLabel,
                 listRoomsButton
             );
@@ -856,7 +853,7 @@ public class MainApp extends Application {
             primaryStage.setScene(loginScene);
         });
 
-        layout.getChildren().addAll(connectionStatusLabel, titleLabel, messageLabel, serverInfoLabel, reconnectButton, resetButton);
+        layout.getChildren().addAll(connectionStatusLabel, titleLabel, messageLabel, serverInfoLabel, resetButton);
 
         Scene scene = new Scene(layout, 400, 350);
         primaryStage.setScene(scene);
