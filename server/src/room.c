@@ -109,26 +109,19 @@ int remove_player_from_room(client_t *c, room_t *r) {
     if (r->player_count == 2) {
         if (r->player1 == c) {
             r->player1 = r->player2;
+            r->player_count--;
             r->player2 = NULL;
+            r->state = RM_OPEN;
         } else {
+            r->player_count--;
             r->player2 = NULL;
+            r->state = RM_OPEN;
         }
         send_line(r->player1->fd, "PLAYER_LEFT %s", c->nick);
     } else {
+        r->player_count--;
         r->player1 = NULL;
     }
     return 0;
-}
-
-int was_replaced(room_t *r, client_t *c) {
-    if (!r || !c) return 0;
-
-    if (r->player1) {
-        if (r->player1 == c) return 0;
-    }
-    if (r->player2) {
-        if (r->player2 == c) return 0;
-    }
-    return 1;
 }
 
