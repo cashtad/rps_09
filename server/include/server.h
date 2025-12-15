@@ -26,6 +26,7 @@
 #define PING_INTERVAL 3      // раз в 5 секунд
 #define CLIENT_TIMEOUT_SOFT 6    // если 15 секунд нет PONG → кик
 #define CLIENT_TIMEOUT_HARD 45    // если 15 секунд нет PONG → кик
+#define MAX_INVALID_MSG_STREAK 3
 
 typedef enum {
     ST_CONNECTED, // начальное состояние при подключении
@@ -47,6 +48,7 @@ typedef struct {
     time_t last_ping_sent;   // когда отправили последний PING
     client_timeout_t timeout_state; // для статуса подключения
     int is_replaced;
+    int invalid_msg_streak;
     pthread_t thread;
 } client_t;
 

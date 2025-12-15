@@ -100,7 +100,6 @@ int add_player_to_room(client_t *c, room_t *r) {
     if (r->player_count == 2) r->state = RM_FULL;
     c->room_id = r->id;
     c->state = ST_IN_LOBBY;
-    send_line(c->fd, "ROOM_JOINED %d", r->id);
     return 0;
 }
 

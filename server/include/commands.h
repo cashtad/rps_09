@@ -7,7 +7,7 @@
 // Command handlers
 void handle_line(client_t *c, char *line);
 void handle_hello(client_t *c, char *args);
-void handle_list(const client_t *c);
+void handle_list(client_t *c);
 void handle_create(client_t *c, char *args);
 void handle_join(client_t *c, char *args);
 void handle_ready(client_t *c);

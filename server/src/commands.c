@@ -4,15 +4,37 @@
 #include "../include/client.h"
 #include <string.h>
 #include <pthread.h>
+#include <sys/socket.h>
 
 extern pthread_mutex_t global_lock;
 
+void mark_invalid_message(client_t *c) {
+    if (!c) return;
+    c->invalid_msg_streak++;
+    if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
+        send_line(c->fd, "ERR 109 TOO_MANY_INVALID_COMMANDS");
+        shutdown(c->fd, SHUT_RDWR);
+    }
+}
+
+void mark_valid_message(client_t *c) {
+    if (c) c->invalid_msg_streak = 0;
+}
+
 void handle_hello(client_t *c, char *args) {
+    if (!args) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT missing_nick");
+        mark_invalid_message(c);
+        return;
+    }
     char *nick = strtok(args, " ");
     if (!nick) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_nick");
+        mark_invalid_message(c);
         return;
     }
+    mark_valid_message(c);
+
     if (find_client_by_name(nick) != NULL) {
         send_line(c->fd, "ERR 107 NICKNAME_TAKEN");
         return;
@@ -25,24 +47,43 @@ void handle_hello(client_t *c, char *args) {
     send_line(c->fd, "WELCOME %s", c->token);
 }
 
-void handle_list(const client_t *c) {
+void handle_list(client_t *c) {
     if (c->state != ST_AUTH) {
         send_line(c->fd, "ERR 101 INVALID_STATE not_auth");
+        mark_invalid_message(c);
         return;
     }
+    mark_valid_message(c);
     send_room_list(c->fd);
 }
 
 void handle_create(client_t *c, char *args) {
-    if (c->state != ST_AUTH) {
-        send_line(c->fd, "ERR 101 INVALID_STATE");
+    if (!args) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_name");
+        mark_invalid_message(c);
         return;
     }
     char *rname = strtok(args, " ");
     if (!rname) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_name");
+        mark_invalid_message(c);
         return;
     }
+
+    if (strlen(rname) > ROOM_NAME_MAX) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT room_name_too_long");
+        mark_invalid_message(c);
+        return;
+    }
+
+    if (c->state != ST_AUTH) {
+        send_line(c->fd, "ERR 101 INVALID_STATE");
+        mark_invalid_message(c);
+        return;
+    }
+
+    mark_valid_message(c);
+
     int rid = create_room(rname);
     if (rid < 0) {
         send_line(c->fd, "ERR 200 SERVER_FULL");
@@ -54,13 +95,20 @@ void handle_create(client_t *c, char *args) {
 }
 
 void handle_join(client_t *c, char *args) {
-    if (c->state != ST_AUTH) {
-        send_line(c->fd, "ERR 101 INVALID_STATE");
+    if (!args) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_id");
+        mark_invalid_message(c);
         return;
     }
     char *idstr = strtok(args, " ");
     if (!idstr) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_id");
+        mark_invalid_message(c);
+        return;
+    }
+
+    if (c->state != ST_AUTH) {
+        send_line(c->fd, "ERR 101 INVALID_STATE");
         return;
     }
     int rid = atoi(idstr);
@@ -76,7 +124,10 @@ void handle_join(client_t *c, char *args) {
         return;
     }
 
+    mark_valid_message(c);
+
     add_player_to_room(c, r);
+    send_line(c->fd, "ROOM_JOINED %d", r->id);
 
     if (r->player_count == 2) {
         client_t *other = (r->player1 == c) ? r->player2 : r->player1;
@@ -85,6 +136,13 @@ void handle_join(client_t *c, char *args) {
 }
 
 void handle_ready(client_t *c) {
+    if (c->state != ST_IN_LOBBY) {
+        send_line(c->fd, "ERR 101 INVALID_STATE not_in_lobby");
+        mark_invalid_message(c);
+        return;
+    }
+
+    mark_valid_message(c);
     c->state = ST_READY;
     send_line(c->fd, "OK you_are_ready");
 
@@ -105,19 +163,23 @@ void handle_leave(client_t *c) {
     room_t *r = find_room_by_id(c->room_id);
     if (!r) {
         send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+        mark_invalid_message(c);
         return;
     }
 
     if (r->state != RM_FULL && r->state != RM_OPEN) {
         send_line(c->fd, "ERR 101 INVALID_STATE cannot_leave_now");
+        mark_invalid_message(c);
         return;
     }
 
     if (c->state != ST_IN_LOBBY && c->state != ST_READY) {
         send_line(c->fd, "ERR 101 INVALID_STATE cannot_leave_now");
+        mark_invalid_message(c);
         return;
     }
 
+    mark_valid_message(c);
     remove_player_from_room(c, r);
     send_line(c->fd, "LEFT_ROOM %d", r->id);
 }
@@ -125,31 +187,42 @@ void handle_leave(client_t *c) {
 void handle_move(client_t *c, char *args) {
     if (c->state != ST_PLAYING) {
         send_line(c->fd, "ERR 101 INVALID_STATE");
+        mark_invalid_message(c);
         return;
     }
 
     room_t *r = find_room_by_id(c->room_id);
     if (!r) {
         send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+        mark_invalid_message(c);
         return;
     }
 
     // Проверяем состояние комнаты
     if (r->state != RM_PLAYING) {
         send_line(c->fd, "ERR 101 INVALID_STATE room_not_playing");
+        mark_invalid_message(c);
         return;
     }
 
     if (!r->awaiting_moves) {
         send_line(c->fd, "ERR 101 INVALID_STATE not_accepting_moves");
+        mark_invalid_message(c);
         return;
     }
 
+    if (!args) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT invalid_move");
+        mark_invalid_message(c);
+        return;
+    }
     char *move = strtok(args, " ");
     if (!move || (move[0] != 'R' && move[0] != 'P' && move[0] != 'S')) {
         send_line(c->fd, "ERR 100 BAD_FORMAT invalid_move");
+        mark_invalid_message(c);
         return;
     }
+    mark_valid_message(c);
 
     // Сохраняем ход
     if (r->player1 == c) {
@@ -183,14 +256,18 @@ void handle_move(client_t *c, char *args) {
 void handle_get_opponent(client_t *c) {
     if (c->state != ST_IN_LOBBY && c->state != ST_READY) {
         send_line(c->fd, "ERR 101 INVALID_STATE not_in_lobby");
+        mark_invalid_message(c);
         return;
     }
 
     room_t *r = find_room_by_id(c->room_id);
     if (!r) {
         send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
+        mark_invalid_message(c);
         return;
     }
+    mark_valid_message(c);
+
 
     if (r->player_count == 1) {
         send_line(c->fd, "OPPONENT_INFO NONE");
@@ -207,16 +284,20 @@ void handle_reconnect(client_t *c, char* args) {
     printf("Handling reconnect for fd%d token %s\n", c->fd, token);
     if (!token) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_token");
+        mark_invalid_message(c);
         shutdown(c->fd, SHUT_RDWR);
         return;
     }
 
     client_t *old_client = find_client_by_token(token);
     if (!old_client) {
-        send_line(c->fd, "ERR XXX INVALID_TOKEN");
+        send_line(c->fd, "ERR 110 INVALID_TOKEN");
+        mark_invalid_message(c);
         shutdown(c->fd, SHUT_RDWR);
         return;
     }
+
+    mark_valid_message(c);
 
     // Копируем данные старого клиента
     strncpy(c->nick, old_client->nick, NICK_MAX);
@@ -227,6 +308,7 @@ void handle_reconnect(client_t *c, char* args) {
     c->room_id = old_client->room_id;
     c->timeout_state = CONNECTED;
     c->last_seen = time(NULL);
+    c->invalid_msg_streak = old_client->invalid_msg_streak;
     old_client->is_replaced = 1;
 
 
@@ -344,8 +426,6 @@ void handle_line(client_t *c, char *line) {
         pthread_mutex_lock(&global_lock);
         handle_get_opponent(c);
         pthread_mutex_unlock(&global_lock);
-    } else if (strcmp(cmd, "QUIT") == 0) {
-        send_line(c->fd, "OK bye");
     } else if (strcmp(cmd, "PONG") == 0) {
         return;
     } else if (strcmp(cmd, "RECONNECT") == 0){
@@ -354,5 +434,6 @@ void handle_line(client_t *c, char *line) {
         pthread_mutex_unlock(&global_lock);
     } else {
         send_line(c->fd, "ERR 100 BAD_FORMAT unknown_command");
+        mark_invalid_message(c);
     }
 }
