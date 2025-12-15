@@ -845,7 +845,8 @@ public class MainApp extends Application {
                 new Label("Name:"), nameField,
                 new Label("Server IP:"), hostField,
                 new Label("Port:"), portField,
-                statusLabel,
+                    connectButton,
+                    statusLabel,
                 listRoomsButton
             );
 
