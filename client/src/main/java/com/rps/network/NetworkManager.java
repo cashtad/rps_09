@@ -11,17 +11,23 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Low-level TCP connection manager.
+ * <p>
+ * Responsibilities:
+ * <ul>
+ *     <li>Open and close a TCP socket.</li>
+ *     <li>Read and write line-based messages in background threads.</li>
+ *     <li>Emit soft and hard timeouts based on inactivity.</li>
+ * </ul>
+ */
 public final class NetworkManager {
     private static final Logger LOG = Logger.getLogger(NetworkManager.class.getName());
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(6);
@@ -48,19 +54,41 @@ public final class NetworkManager {
     private Runnable onSoftTimeout;
     private Runnable onHardTimeout;
 
+    /**
+     * Creates new manager with default soft and hard timeouts.
+     */
     public NetworkManager() {
         this(DEFAULT_TIMEOUT, DEFAULT_HARD_TIMEOUT);
     }
 
+    /**
+     * Creates manager with custom soft timeout and default hard timeout.
+     *
+     * @param softTimeout inactivity duration before soft timeout callback is fired.
+     */
     public NetworkManager(Duration softTimeout) {
         this(softTimeout, DEFAULT_HARD_TIMEOUT);
     }
 
+    /**
+     * Creates manager with custom soft and hard timeout values.
+     *
+     * @param softTimeout inactivity duration before soft timeout callback is fired.
+     * @param hardTimeout inactivity duration before hard timeout callback is fired.
+     */
     public NetworkManager(Duration softTimeout, Duration hardTimeout) {
         this.softTimeout = softTimeout != null ? softTimeout : DEFAULT_TIMEOUT;
         this.hardTimeout = hardTimeout != null ? hardTimeout : DEFAULT_HARD_TIMEOUT;
     }
 
+    /**
+     * Opens a new TCP connection to given host and port.
+     *
+     * @param host remote host name or IP address.
+     * @param port remote TCP port number (1-65535).
+     * @throws IOException              if network connection fails.
+     * @throws IllegalArgumentException if port is out of range.
+     */
     public void connect(String host, int port) throws IOException {
         Objects.requireNonNull(host, "host");
         if (port <= 0 || port > 65_535) {
@@ -83,11 +111,20 @@ public final class NetworkManager {
         }
     }
 
+    /**
+     * Closes current TCP connection if present and marks it as intentional.
+     * Input: none, Output: none.
+     */
     public void disconnect() {
         intentionalClose.set(true);
         disconnectInternal();
     }
 
+    /**
+     * Sends a single text line to server, appending CRLF.
+     *
+     * @param message non-null string payload to send.
+     */
     public void send(String message) {
         Objects.requireNonNull(message, "message");
         ExecutorService executor = this.writerExecutor;
@@ -99,22 +136,47 @@ public final class NetworkManager {
         executor.execute(() -> writeSafely(message));
     }
 
+    /**
+     * Registers callback invoked when a full line is read from server.
+     *
+     * @param handler line consumer; may be null to disable callbacks.
+     */
     public void setOnMessageReceived(Consumer<String> handler) {
         this.onMessageReceived = handler;
     }
 
+    /**
+     * Registers callback invoked when connection is closed unexpectedly.
+     *
+     * @param handler callback for disconnect event; may be null.
+     */
     public void setOnDisconnected(Runnable handler) {
         this.onDisconnected = handler;
     }
 
+    /**
+     * Registers callback invoked when soft timeout occurs.
+     *
+     * @param handler callback for soft timeout; may be null.
+     */
     public void setOnSoftTimeout(Runnable handler) {
         this.onSoftTimeout = handler;
     }
 
+    /**
+     * Registers callback invoked when hard timeout occurs.
+     *
+     * @param handler callback for hard timeout; may be null.
+     */
     public void setOnHardTimeout(Runnable handler) {
         this.onHardTimeout = handler;
     }
 
+    /**
+     * Checks whether there is an active connected socket.
+     *
+     * @return true if connected, false otherwise.
+     */
     public boolean isConnected() {
         Socket current = this.socket;
         return current != null && current.isConnected() && !current.isClosed();
@@ -137,10 +199,24 @@ public final class NetworkManager {
         }
     }
 
+    /**
+     * Background loop that continuously reads lines from socket
+     * and dispatches them to the registered listener.
+     */
     private void startReaderThread() {
         readerThread = new Thread(this::readLoop, "network-reader");
         readerThread.setDaemon(true);
         readerThread.start();
+    }
+
+    /**
+     * Periodic task run by watchdog executor to detect inactivity.
+     * Computes elapsed time and invokes soft/hard timeout callbacks.
+     */
+    private void startWatchdog() {
+        shutdownExecutor(watchdogExecutor);
+        watchdogExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("network-watchdog"));
+        watchdogExecutor.scheduleAtFixedRate(this::checkInactivity, 1, 1, TimeUnit.SECONDS);
     }
 
     private void readLoop() {
@@ -169,12 +245,6 @@ public final class NetworkManager {
                 }
             }
         }
-    }
-
-    private void startWatchdog() {
-        shutdownExecutor(watchdogExecutor);
-        watchdogExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("network-watchdog"));
-        watchdogExecutor.scheduleAtFixedRate(this::checkInactivity, 1, 1, TimeUnit.SECONDS);
     }
 
     private void checkInactivity() {
@@ -283,6 +353,9 @@ public final class NetworkManager {
         }
     }
 
+    /**
+     * Simple thread factory that assigns a name prefix and marks threads as daemons.
+     */
     private static final class NamedThreadFactory implements ThreadFactory {
         private final String prefix;
         private int index = 0;

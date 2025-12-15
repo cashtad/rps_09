@@ -3,18 +3,23 @@ package com.rps.network;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Handles automatic and manual reconnection logic on top of {@link NetworkManager}.
+ * <p>
+ * Responsibilities:
+ * <ul>
+ *     <li>Retry connection for a limited time window after disconnect.</li>
+ *     <li>Send RECONNECT command when connection is re-opened.</li>
+ *     <li>Expose callbacks for reconnect success and failure.</li>
+ * </ul>
+ */
 public final class ReconnectionManager {
     private static final Logger LOG = Logger.getLogger(ReconnectionManager.class.getName());
 
@@ -36,6 +41,13 @@ public final class ReconnectionManager {
     private volatile String host;
     private volatile int port;
 
+    /**
+     * Creates reconnection manager with default intervals and window.
+     *
+     * @param networkManager  underlying network manager.
+     * @param protocolHandler protocol handler used to send RECONNECT command.
+     * @param eventBus        event dispatcher to listen for RECONNECT_OK and ERR.
+     */
     public ReconnectionManager(NetworkManager networkManager,
                                ProtocolHandler protocolHandler,
                                EventBus eventBus) {
@@ -43,6 +55,16 @@ public final class ReconnectionManager {
                 Duration.ofSeconds(1), Duration.ofSeconds(45));
     }
 
+    /**
+     * Creates reconnection manager with custom intervals and window.
+     *
+     * @param networkManager  underlying network manager.
+     * @param protocolHandler protocol handler used to send RECONNECT command.
+     * @param eventBus        event dispatcher to listen for RECONNECT_OK and ERR.
+     * @param callbackExecutor executor for callback execution, or null for default.
+     * @param interval         initial reconnection interval (minimum delay between attempts).
+     * @param autoWindow       maximum time window for automatic reconnection attempts.
+     */
     public ReconnectionManager(NetworkManager networkManager,
                                ProtocolHandler protocolHandler,
                                EventBus eventBus,
@@ -59,6 +81,11 @@ public final class ReconnectionManager {
         registerEventHandlers();
     }
 
+    /**
+     * Starts automatic reconnection attempts with given token.
+     *
+     * @param token reconnect token returned earlier by server.
+     */
     public void startAutoReconnect(String token) {
         ensureConnectionInfo();
         Objects.requireNonNull(token, "token");
@@ -71,6 +98,11 @@ public final class ReconnectionManager {
         autoTask = scheduler.scheduleAtFixedRate(this::autoAttempt, 0L, interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Immediately performs a single manual reconnect attempt.
+     *
+     * @param token reconnect token.
+     */
     public void manualReconnect(String token) {
         ensureConnectionInfo();
         Objects.requireNonNull(token, "token");
@@ -80,14 +112,30 @@ public final class ReconnectionManager {
         attemptReconnect();
     }
 
+    /**
+     * Registers callback invoked when automatic reconnection fails permanently.
+     *
+     * @param handler runnable invoked without arguments.
+     */
     public void setOnAutoReconnectFailed(Runnable handler) {
         this.onAutoReconnectFailed = handler;
     }
 
+    /**
+     * Registers callback invoked when reconnect is confirmed by server.
+     *
+     * @param handler consumer that receives parsed state string from server.
+     */
     public void setOnReconnectSuccess(Consumer<String> handler) {
         this.onReconnectSuccess = handler;
     }
 
+    /**
+     * Updates target host and port used for reconnection.
+     *
+     * @param host host name or IP address.
+     * @param port TCP port (1-65535).
+     */
     public void setConnectionInfo(String host, int port) {
         Objects.requireNonNull(host, "host");
         if (host.isBlank() || port <= 0 || port > 65_535) {
@@ -97,17 +145,28 @@ public final class ReconnectionManager {
         this.port = port;
     }
 
+    /**
+     * Returns true if reconnection process is currently active.
+     *
+     * @return boolean flag indicating reconnection state.
+     */
     public boolean isReconnecting() {
         State current = state.get();
         return current == State.AUTO || current == State.MANUAL;
     }
 
+    /**
+     * Aborts automatic reconnection and resets internal state to idle.
+     */
     public void abortAutoReconnect() {
         cancelAutoTask();
         attempts.set(0);
         state.set(State.IDLE);
     }
 
+    /**
+     * Shuts down internal scheduler and cancels any pending tasks.
+     */
     public void shutdown() {
         cancelAutoTask();
         scheduler.shutdownNow();
@@ -171,6 +230,12 @@ public final class ReconnectionManager {
         }
     }
 
+    /**
+     * Parses RECONNECT_OK event into simplified server state description.
+     *
+     * @param event event instance from server.
+     * @return string describing state, e.g. "GAME ..." or "LOBBY ...".
+     */
     private String parseServerState(ServerEvent event) {
         String statePart = event.getPart(1);
         if ("GAME".equals(statePart) && event.getPartsCount() >= 5) {
@@ -218,6 +283,9 @@ public final class ReconnectionManager {
         MANUAL
     }
 
+    /**
+     * Thread factory for reconnection scheduler; names and daemonizes threads.
+     */
     private static final class NamedThreadFactory implements ThreadFactory {
         private final String prefix;
         private int index = 0;

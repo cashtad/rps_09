@@ -5,6 +5,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+/**
+ * High-level protocol handler for server communication.
+ * <p>
+ * Responsibilities:
+ * <ul>
+ *     <li>Transforms outgoing operations into text commands.</li>
+ *     <li>Parses incoming text lines into {@link ServerEvent}.</li>
+ *     <li>Aggregates multi-line responses such as room list.</li>
+ * </ul>
+ */
 public final class ProtocolHandler {
     private static final Logger LOG = Logger.getLogger(ProtocolHandler.class.getName());
 
@@ -14,6 +24,12 @@ public final class ProtocolHandler {
 
     private volatile String token;
 
+    /**
+     * Creates a new protocol handler and attaches it to given network manager and event bus.
+     *
+     * @param networkManager underlying network manager instance.
+     * @param eventBus       event dispatcher for parsed server messages.
+     */
     public ProtocolHandler(NetworkManager networkManager, EventBus eventBus) {
         this.networkManager = Objects.requireNonNull(networkManager, "networkManager");
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
@@ -47,54 +63,107 @@ public final class ProtocolHandler {
         }
     }
 
+    /**
+     * Sends HELLO command with player's nickname.
+     *
+     * @param nickname non-null player nickname string.
+     */
     public void sendHello(String nickname) {
         networkManager.send("HELLO " + nickname);
     }
 
+    /**
+     * Requests list of rooms from server (LIST command).
+     */
     public void requestRooms() {
         networkManager.send("LIST");
     }
 
+    /**
+     * Sends CREATE command in order to create new room on server.
+     *
+     * @param name room name without spaces.
+     */
     public void createRoom(String name) {
         networkManager.send("CREATE " + name);
     }
 
+    /**
+     * Sends JOIN command for given room identifier.
+     *
+     * @param id textual room identifier.
+     */
     public void joinRoom(String id) {
         networkManager.send("JOIN " + id);
     }
 
+    /**
+     * Informs server that player is ready in current lobby (READY).
+     */
     public void markReady() {
         networkManager.send("READY");
     }
 
+    /**
+     * Sends MOVE command with move code.
+     *
+     * @param move one of "R", "P", "S".
+     */
     public void sendMove(String move) {
         networkManager.send("MOVE " + move);
     }
 
+    /**
+     * Leaves current room by sending LEAVE command.
+     */
     public void leaveRoom() {
         networkManager.send("LEAVE");
     }
 
+    /**
+     * Requests opponent info in current lobby (GET_OPPONENT).
+     */
     public void requestOpponentInfo() {
         networkManager.send("GET_OPPONENT");
     }
 
+    /**
+     * Responds to server ping (PING) with PONG message.
+     */
     public void respondPing() {
         networkManager.send("PONG");
     }
 
+    /**
+     * Sends RECONNECT command with given token.
+     *
+     * @param reconnectToken reconnect token assigned earlier.
+     */
     public void sendReconnect(String reconnectToken) {
         networkManager.send("RECONNECT " + reconnectToken);
     }
 
+    /**
+     * Returns last known token obtained from WELCOME command.
+     *
+     * @return token string or null if not yet assigned.
+     */
     public String getToken() {
         return token;
     }
 
+    /**
+     * Returns event bus used by this protocol handler.
+     *
+     * @return {@link EventBus} instance.
+     */
     public EventBus getEventBus() {
         return eventBus;
     }
 
+    /**
+     * Aggregates multi-line ROOM_LIST/ROOM sequence into single ROOMS_LOADED event.
+     */
     private final class RoomListAssembler {
         private final List<String> rooms = new ArrayList<>();
         private int expected = 0;
@@ -148,6 +217,9 @@ public final class ProtocolHandler {
         }
     }
 
+    /**
+     * Tokenizes raw text lines into arguments taking quotes and escaping into account.
+     */
     private static final class MessageTokenizer {
         private MessageTokenizer() {
         }
