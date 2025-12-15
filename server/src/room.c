@@ -117,10 +117,10 @@ int remove_player_from_room(client_t *c, room_t *r) {
     } else {
         r->player1 = NULL;
     }
-    r->player_count--;
-    r->state = RM_OPEN;
-    c->state = ST_AUTH;
-    c->room_id = -1;
     return 0;
+}
+
+int was_replaced(room_t *r, client_t *c) {
+    return r->player1 == c || r->player2 == c;
 }
 

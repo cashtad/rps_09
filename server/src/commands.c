@@ -246,14 +246,8 @@ void handle_reconnect(client_t *c, char* args) {
                 r->player2 = c;
             }
 
-            // Отправляем информацию
-            client_t *opponent = get_opponent_in_room(r, c);
-            if (opponent) {
-                send_line(c->fd, "RECONNECT_OK LOBBY %s %s", opponent->nick,
-                         (opponent->state == ST_READY) ? "READY" : "NOT_READY");
-            } else {
-                send_line(c->fd, "RECONNECT_OK LOBBY");
-            }
+            send_line(c->fd, "RECONNECT_OK LOBBY");
+
             break;
         case ST_PLAYING:
             room_t *room = find_room_by_id(c->room_id);
@@ -273,7 +267,7 @@ void handle_reconnect(client_t *c, char* args) {
             room->awaiting_moves = 1;
             room->round_start_time = time(NULL);
 
-            opponent = get_opponent_in_room(room, c);
+            client_t *opponent = get_opponent_in_room(room, c);
             //Получаем информацию, был ли совершен ход до отключения
             char performed_move = (room->player1 == c) ? room->move_p1 : room->move_p2;
             send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",

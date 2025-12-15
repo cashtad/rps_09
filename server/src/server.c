@@ -135,15 +135,14 @@ void process_client_hard_disconnection(client_t *c) {
         case ST_IN_LOBBY:
         case ST_READY:
             room_t *r = find_room_by_id(c->room_id);
-            if (r == NULL) {
-                break;
+            if (r && !was_replaced(r,c)) {
+                remove_player_from_room(c, r);
             }
-            remove_player_from_room(c, r);
             break;
 
         case ST_PLAYING:
             room_t *room = find_room_by_id(c->room_id);
-            if (room) {
+            if (room && !was_replaced(room, c)) {
                 client_t *opponent = get_opponent_in_room(room, c);
                 if (opponent) {
                     send_line(opponent->fd, "GAME_END opponent_left");

@@ -68,7 +68,6 @@ public final class NetworkManager {
         }
         LOG.info("Connecting to " + host + ":" + port);
         synchronized (lifecycleLock) {
-            LOG.info("Establishing socket connection...");
             disconnectInternal();
             socket = new Socket();
             socket.connect(new InetSocketAddress(host, port), 1000);
@@ -85,7 +84,6 @@ public final class NetworkManager {
     }
 
     public void disconnect() {
-        LOG.info("Disconnecting from server (intentional)...");
         intentionalClose.set(true);
         disconnectInternal();
     }
@@ -179,9 +177,7 @@ public final class NetworkManager {
     }
 
     private void checkInactivity() {
-        LOG.info("Checking for inactivity...");
         if (!isConnected()) {
-            LOG.info("Socket not connected, skipping inactivity check");
             return;
         }
         Duration elapsed = Duration.ofNanos(System.nanoTime() - lastMessageAt.get());
@@ -222,21 +218,17 @@ public final class NetworkManager {
 
     private void disconnectInternal() {
         synchronized (lifecycleLock) {
-            LOG.info("Disconnecting from server...");
 //            resetTimeoutFlags();
             closeReaderThread();
             closeSocket();
             closeQuietly(reader);
             closeQuietly(writer);
-            LOG.info("Closed reader and writer.");
             reader = null;
             writer = null;
-            LOG.info("Closed socket.");
             shutdownExecutor(writerExecutor);
             writerExecutor = null;
             shutdownExecutor(watchdogExecutor);
             watchdogExecutor = null;
-            LOG.info("Disconnected.");
         }
     }
 
@@ -271,14 +263,12 @@ public final class NetworkManager {
     }
 
     private void closeQuietly(Closeable closeable) {
-        LOG.info("Closing resource: " + closeable);
         if (closeable != null) {
             try {
                 closeable.close();
             } catch (IOException ignored) {
             }
         }
-        LOG.info("Closed resource: " + closeable);
     }
 
     private void shutdownExecutor(ExecutorService executor) {

@@ -60,7 +60,6 @@ public final class ReconnectionManager {
     }
 
     public void startAutoReconnect(String token) {
-        LOG.info("Starting automatic reconnection attempts");
         ensureConnectionInfo();
         Objects.requireNonNull(token, "token");
         if (!state.compareAndSet(State.IDLE, State.AUTO)) {
@@ -104,7 +103,6 @@ public final class ReconnectionManager {
     }
 
     public void abortAutoReconnect() {
-        LOG.info("Aborting automatic reconnection attempts");
         cancelAutoTask();
         attempts.set(0);
         state.set(State.IDLE);
@@ -116,7 +114,6 @@ public final class ReconnectionManager {
     }
 
     private void autoAttempt() {
-        LOG.info("Automatic reconnection attempt");
         if (state.get() != State.AUTO) {
             return;
         }
@@ -132,13 +129,12 @@ public final class ReconnectionManager {
     private void attemptReconnect() {
         synchronized (connectLock) {
             try {
-                LOG.info(() -> "Attempting reconnection to " + host + ":" + port);
                 networkManager.disconnect();
                 networkManager.connect(host, port);
                 protocolHandler.sendReconnect(lastToken);
 
             } catch (IOException ex) {
-                LOG.log(Level.WARNING, "Reconnection attempt failed", ex);
+                LOG.log(Level.WARNING, "Reconnection attempt failed");
             }
         }
     }
