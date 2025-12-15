@@ -5,6 +5,7 @@
 
 extern pthread_mutex_t global_lock;
 extern room_t rooms[MAX_ROOMS];
+/** Tracks the next numeric identifier assigned to a newly created room. */
 static int next_room_id = 1;
 
 void init_rooms(void) {
@@ -29,7 +30,6 @@ const char* get_room_state_name(const room_state_t state) {
         case RM_FULL: return "FULL";
         case RM_PLAYING: return "PLAYING";
         case RM_PAUSED: return "PAUSED";
-        case RM_FINISHED: return "FINISHED";
     }
     return "";
 }
@@ -123,4 +123,3 @@ int remove_player_from_room(client_t *c, room_t *r) {
     }
     return 0;
 }
-

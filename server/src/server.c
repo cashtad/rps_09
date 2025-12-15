@@ -8,8 +8,11 @@
 #include "../include/network.h"
 #include "../include/commands.h"
 
+/** Protects shared server-wide state accessed across threads. */
 pthread_mutex_t global_lock = PTHREAD_MUTEX_INITIALIZER;
+/** Holds pointers to every currently connected client slot. */
 client_t *clients[MAX_CLIENTS];
+/** Stores all room descriptors available on the server. */
 room_t rooms[MAX_ROOMS];
 
 int main(int argc, char **argv) {
@@ -116,11 +119,11 @@ void *room_timeout_worker(void *arg) {
     const struct timespec interval = { .tv_sec = 0, .tv_nsec = 200 * 1000 * 1000 };
 
     for (;;) {
-        nanosleep(&interval, NULL);  // Сначала спим, чтобы не блокировать сразу
+        nanosleep(&interval, NULL);  // Sleep first so the loop never spins aggressively
 
         pthread_mutex_lock(&global_lock);
-        check_rooms();     // проверка на таймаут комнат (если кто-то не ходит)
-        check_clients();   // проверка на таймаут клиентов
+        check_rooms();     // Enforce room round-expiration rules
+        check_clients();   // Enforce client heartbeat and timeout rules
         pthread_mutex_unlock(&global_lock);
     }
     return NULL;
@@ -155,7 +158,7 @@ void *client_worker(void *arg) {
 
 void process_client_hard_disconnection(client_t *c) {
     printf("Processing hard disconnect for client %s fd%d\n", c->nick, c->fd);
-    // Если клиент заменён через RECONNECT - ничего не делаем
+    // If the client was replaced via RECONNECT, skip cleanup
     if (c->is_replaced) {
         printf("Client %s was replaced, skipping cleanup\n", c->nick);
         return;
@@ -212,7 +215,7 @@ void check_clients(void) {
         client_t *c = clients[i];
         if (!c) continue;
 
-        // 1) Если давно ничего не получали → клиент завис/отвалился
+        // 1) If no data has been received recently, mark the client as stalled
         if (now - c->last_seen >= CLIENT_TIMEOUT_SOFT && c->timeout_state == CONNECTED) {
             fprintf(stderr, "Client soft timeout: %s\n", c->nick);
             c->timeout_state = SOFT_TIMEOUT;
@@ -220,14 +223,14 @@ void check_clients(void) {
             continue;
         }
 
-        // 2) Hard отключение клиента с удалением его
+        // 2) Force a hard disconnect if the client never recovered after the soft timeout
         if (now - c->last_seen >= CLIENT_TIMEOUT_HARD && c->timeout_state == SOFT_TIMEOUT) {
             fprintf(stderr, "Client hard timeout: %s\n", c->nick);
             shutdown(c->fd, SHUT_RDWR);
             continue;
         }
 
-        // 3) Отправляем PING раз в PING_INTERVAL секунд
+        // 3) Send periodic ping frames to keep the connection alive
         if (now - c->last_ping_sent >= PING_INTERVAL && c->timeout_state == CONNECTED) {
             send_line(c->fd, "PING");
             c->last_ping_sent = now;

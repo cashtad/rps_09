@@ -154,7 +154,7 @@ void handle_ready(client_t *c) {
     send_line(opponent->fd, "PLAYER_READY %s", c->nick);
 
     if (opponent->state == ST_READY) {
-        // Оба игрока готовы, начинаем игру
+        // Start the match once both participants are ready
         start_game(r);
     }
 }
@@ -198,7 +198,7 @@ void handle_move(client_t *c, char *args) {
         return;
     }
 
-    // Проверяем состояние комнаты
+    // Validate the room state before accepting the move
     if (r->state != RM_PLAYING) {
         send_line(c->fd, "ERR 101 INVALID_STATE room_not_playing");
         mark_invalid_message(c);
@@ -224,7 +224,7 @@ void handle_move(client_t *c, char *args) {
     }
     mark_valid_message(c);
 
-    // Сохраняем ход
+    // Remember the move for the player that just acted
     if (r->player1 == c) {
         if (r->move_p1 != '\0') {
             send_line(c->fd, "ERR 101 INVALID_STATE move_already_sent");
@@ -241,7 +241,7 @@ void handle_move(client_t *c, char *args) {
 
     send_line(c->fd, "MOVE_ACCEPTED");
 
-    // Проверяем, получены ли оба хода
+    // Run the round resolution once both moves are present
     if (r->move_p1 != '\0' && r->move_p2 != '\0') {
         fprintf(stderr, "Both moves received, processing round\n");
         r->awaiting_moves = 0;
@@ -299,7 +299,7 @@ void handle_reconnect(client_t *c, char* args) {
 
     mark_valid_message(c);
 
-    // Копируем данные старого клиента
+    // Copy the previous client's session data
     strncpy(c->nick, old_client->nick, NICK_MAX);
     c->nick[NICK_MAX] = '\0';
     strncpy(c->token, old_client->token, TOKEN_LEN);
@@ -323,7 +323,7 @@ void handle_reconnect(client_t *c, char* args) {
                 send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
                 break;
             }
-            // заменить старого клиента на нового
+            // Replace the old client pointer with the reconnected instance
             if (r->player1 == old_client) {
                 r->player1 = c;
                 printf("Replaced player1 fd%d by fd%d\n", old_client->fd, c->fd);
@@ -341,20 +341,19 @@ void handle_reconnect(client_t *c, char* args) {
                 send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
                 break;
             }
-            // заменить старого клиента на нового
+            // Replace the old client pointer with the reconnected instance
             if (room->player1 == old_client) {
                 room->player1 = c;
             } else {
                 room->player2 = c;
             }
 
-            // Обновляем комнату
+            // Refresh the room metadata to resume gameplay
             room->state = RM_PLAYING;
             room->awaiting_moves = 1;
             room->round_start_time = time(NULL);
-
             client_t *opponent = get_opponent_in_room(room, c);
-            //Получаем информацию, был ли совершен ход до отключения
+            // Check whether this player already sent a move before disconnecting
             char performed_move = (room->player1 == c) ? room->move_p1 : room->move_p2;
             if (performed_move != '\0') {
                 performed_move = 'X';

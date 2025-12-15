@@ -17,6 +17,7 @@ import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Main JavaFX entry point for the Rock-Paper-Scissors client.
@@ -99,7 +100,6 @@ public class MainApp extends Application {
 
     /**
      * Configures callbacks for soft/hard timeouts and auto/manual reconnection.
-     *
      * Input: none. Output: none. Side-effect: sets handlers on {@link NetworkManager}
      * and {@link ReconnectionManager}.
      */
@@ -132,13 +132,11 @@ public class MainApp extends Application {
         reconnectionManager.setOnAutoReconnectFailed(() ->
                 Platform.runLater(() -> primaryStage.setScene(connectionUi.buildManualReconnectScene())));
 
-        reconnectionManager.setOnReconnectSuccess(state -> {
-            Platform.runLater(() -> {
-                updateConnectionStatus(true);
-                handleReconnectState(state);
-                showAlert("Reconnected", "Connection restored!");
-            });
-        });
+        reconnectionManager.setOnReconnectSuccess(state -> Platform.runLater(() -> {
+            updateConnectionStatus(true);
+            handleReconnectState(state);
+            showAlert("Reconnected", "Connection restored!");
+        }));
 
         reconnectionManager.setConnectionInfo(currentHost, currentPort);
     }
@@ -151,7 +149,7 @@ public class MainApp extends Application {
     private void setupEventHandlers() {
         // Optional logging of every event may be enabled here if required.
         eventBus.subscribeAll(event -> {
-            // ...existing code for optional logging can be placed here...
+
         });
 
         // Welcome message means connection established and token received.
@@ -253,7 +251,6 @@ public class MainApp extends Application {
      * Handles protocol confirmation responses from the server.
      *
      * @param event server event that contains confirmation details. Input: parsed server message.
-     * @return nothing. Side-effect: updates lobby UI state.
      */
     private void handleConfirmation(ServerEvent event) {
         String confirmedCommand = event.getPart(1);
@@ -383,7 +380,6 @@ public class MainApp extends Application {
      *
      * @param title   window title string. Input: non-null string.
      * @param message message body string. Input: non-null string.
-     * @return nothing. Side-effect: shows a modal alert dialog.
      */
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -832,9 +828,12 @@ public class MainApp extends Application {
          */
         void handlePlayerJoined(ServerEvent event) {
             String opponentName = event.getPart(1);
-            if (opponentLabel != null && playerProfile != null && !opponentName.equals(playerProfile.getName())) {
-                opponentLabel.setText("Enemy: " + opponentName);
-                opponentStatusLabel.setText("Status: Not ready");
+            if (opponentLabel != null && playerProfile != null) {
+                assert opponentName != null;
+                if (!opponentName.equals(playerProfile.getName())) {
+                    opponentLabel.setText("Enemy: " + opponentName);
+                    opponentStatusLabel.setText("Status: Not ready");
+                }
             }
         }
 
@@ -845,7 +844,7 @@ public class MainApp extends Application {
          */
         void handlePlayerReady(ServerEvent event) {
             String readyPlayer = event.getPart(1);
-            if (playerProfile != null && readyPlayer.equals(playerProfile.getName())) {
+            if (playerProfile != null && Objects.equals(readyPlayer, playerProfile.getName())) {
                 if (playerStatusLabel != null) {
                     playerStatusLabel.setText("Status: Ready");
                 }
@@ -864,7 +863,7 @@ public class MainApp extends Application {
          */
         void handlePlayerUnready(ServerEvent event) {
             String unreadyPlayer = event.getPart(1);
-            if (playerProfile != null && unreadyPlayer.equals(playerProfile.getName())) {
+            if (playerProfile != null && Objects.equals(unreadyPlayer, playerProfile.getName())) {
                 if (playerStatusLabel != null) {
                     playerStatusLabel.setText("Status: Not ready");
                 }
