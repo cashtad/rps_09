@@ -98,7 +98,7 @@ public class MainApp extends Application {
         // Show initial login/connection scene.
         primaryStage.setTitle("RPS Client");
         primaryStage.setScene(connectionUi.buildLoginScene());
-        updateConnectionStatus(false); // начальное состояние
+        updateConnectionStatus(false);
         primaryStage.show();
     }
 
@@ -410,12 +410,12 @@ public class MainApp extends Application {
         this.isConnected = connected;
         Platform.runLater(() -> {
             if (connected) {
-                globalConnectionStatusLabel.setText("● Connected");
+                globalConnectionStatusLabel.setText("Connected");
                 globalConnectionStatusLabel.setStyle(
                         "-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: green;"
                 );
             } else {
-                globalConnectionStatusLabel.setText("● Not connected");
+                globalConnectionStatusLabel.setText("Not connected");
                 globalConnectionStatusLabel.setStyle(
                         "-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: red;"
                 );
@@ -467,7 +467,6 @@ public class MainApp extends Application {
             layout.setStyle("-fx-padding: 20;");
             layout.setAlignment(Pos.CENTER);
 
-            // лейбл статуса всегда сверху
             layout.getChildren().add(globalConnectionStatusLabel);
 
             Label titleLabel = new Label("Connect to Server");
@@ -517,7 +516,6 @@ public class MainApp extends Application {
             layout.setAlignment(Pos.CENTER);
             layout.setStyle("-fx-padding: 40;");
 
-            // использовать общий лейбл
             layout.getChildren().add(globalConnectionStatusLabel);
             updateConnectionStatus(false);
 
@@ -592,7 +590,6 @@ public class MainApp extends Application {
             VBox layout = new VBox(10);
             layout.setStyle("-fx-padding: 20;");
 
-            // общий лейбл сверху
             layout.getChildren().add(globalConnectionStatusLabel);
 
             Label title = new Label("List of rooms:");
