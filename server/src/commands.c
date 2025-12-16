@@ -33,6 +33,12 @@ void handle_hello(client_t *c, char *args) {
         mark_invalid_message(c);
         return;
     }
+    if (strlen(nick) > NICK_MAX) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT nick_too_long");
+        mark_invalid_message(c);
+        return;
+    }
+
     mark_valid_message(c);
 
     if (find_client_by_name(nick) != NULL) {
