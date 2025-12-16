@@ -415,7 +415,9 @@ public class MainApp extends Application {
         this.isConnected = connected;
         Label label = connectionUi.getConnectionStatusLabel();
         if (label == null) {
-            // Other scenes also host status label, check them as well.
+            label = roomsUi.getConnectionStatusLabel();
+        }
+        if (label == null) {
             label = roomsUi.getConnectionStatusLabel();
         }
         if (label == null) {
