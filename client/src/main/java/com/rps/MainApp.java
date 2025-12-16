@@ -58,6 +58,9 @@ public class MainApp extends Application {
     /** Flag that reflects logical connection state for UI. */
     private boolean isConnected = false;
 
+    /** Global label shown on every scene to display connection status. */
+    private final Label globalConnectionStatusLabel = createConnectionStatusLabel();
+
     /** UI module responsible for connection/login and reconnection screens. */
     private ConnectionUi connectionUi;
 
@@ -95,6 +98,7 @@ public class MainApp extends Application {
         // Show initial login/connection scene.
         primaryStage.setTitle("RPS Client");
         primaryStage.setScene(connectionUi.buildLoginScene());
+        updateConnectionStatus(false); // начальное состояние
         primaryStage.show();
     }
 
@@ -391,10 +395,6 @@ public class MainApp extends Application {
 
     /**
      * Creates a label instance that will be used to display connection status.
-     * <p>
-     * Input: none. Output: new {@link Label} instance not yet bound to any scene.
-     *
-     * @return label ready for further updates.
      */
     private Label createConnectionStatusLabel() {
         Label label = new Label();
@@ -405,40 +405,22 @@ public class MainApp extends Application {
 
     /**
      * Updates the connection status caption and style across currently active scene.
-     * <p>
-     * Input: boolean connected flag. Output: none.
-     * Side-effect: changes internal {@code isConnected} and updates visible label if present.
-     *
-     * @param connected true if connection is logically active, false otherwise.
      */
     private void updateConnectionStatus(boolean connected) {
         this.isConnected = connected;
-        Label label = connectionUi.getConnectionStatusLabel();
-        if (label == null) {
-            label = roomsUi.getConnectionStatusLabel();
-        }
-        if (label == null) {
-            label = roomsUi.getConnectionStatusLabel();
-        }
-        if (label == null) {
-            label = lobbyUi.getConnectionStatusLabel();
-        }
-        if (label == null) {
-            label = gameUi.getConnectionStatusLabel();
-        }
-
-        Label finalLabel = label;
-        if (finalLabel != null) {
-            Platform.runLater(() -> {
-                if (connected) {
-                    finalLabel.setText("● Connected");
-                    finalLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: green;");
-                } else {
-                    finalLabel.setText("● Connection lost, reconnecting...");
-                    finalLabel.setStyle("-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: red;");
-                }
-            });
-        }
+        Platform.runLater(() -> {
+            if (connected) {
+                globalConnectionStatusLabel.setText("● Connected");
+                globalConnectionStatusLabel.setStyle(
+                        "-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: green;"
+                );
+            } else {
+                globalConnectionStatusLabel.setText("● Not connected");
+                globalConnectionStatusLabel.setStyle(
+                        "-fx-font-size: 12; -fx-font-weight: bold; -fx-padding: 5; -fx-text-fill: red;"
+                );
+            }
+        });
     }
 
     @Override
@@ -474,7 +456,6 @@ public class MainApp extends Application {
         private Button connectButton;
         private Button listRoomsButton;
         private Label statusLabel;
-        private Label connectionStatusLabel;
 
         /**
          * Builds the initial login scene with fields for nickname, host and port.
@@ -485,6 +466,9 @@ public class MainApp extends Application {
             VBox layout = new VBox(10);
             layout.setStyle("-fx-padding: 20;");
             layout.setAlignment(Pos.CENTER);
+
+            // лейбл статуса всегда сверху
+            layout.getChildren().add(globalConnectionStatusLabel);
 
             Label titleLabel = new Label("Connect to Server");
             titleLabel.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
@@ -533,7 +517,8 @@ public class MainApp extends Application {
             layout.setAlignment(Pos.CENTER);
             layout.setStyle("-fx-padding: 40;");
 
-            connectionStatusLabel = createConnectionStatusLabel();
+            // использовать общий лейбл
+            layout.getChildren().add(globalConnectionStatusLabel);
             updateConnectionStatus(false);
 
             Label titleLabel = new Label("Connection Lost");
@@ -550,7 +535,7 @@ public class MainApp extends Application {
             resetButton.setStyle("-fx-font-size: 16; -fx-min-width: 150;");
             resetButton.setOnAction(e -> resetToLogin());
 
-            layout.getChildren().addAll(connectionStatusLabel, titleLabel, messageLabel, serverInfoLabel, resetButton);
+            layout.getChildren().addAll(titleLabel, messageLabel, serverInfoLabel, resetButton);
             return new Scene(layout, 400, 350);
         }
 
@@ -596,10 +581,6 @@ public class MainApp extends Application {
         String getEnteredPort() {
             return portField != null ? portField.getText() : "";
         }
-
-        Label getConnectionStatusLabel() {
-            return connectionStatusLabel;
-        }
     }
 
     /**
@@ -607,19 +588,12 @@ public class MainApp extends Application {
      */
     private final class RoomsUi {
 
-        private Label connectionStatusLabel;
-
-        /**
-         * Builds the rooms scene from raw server room strings.
-         *
-         * @param roomsRaw list of raw room descriptions; each is transformed into {@link GameRoom}.
-         * @return new {@link Scene} showing room list and actions.
-         */
         Scene buildRoomsScene(List<String> roomsRaw) {
             VBox layout = new VBox(10);
             layout.setStyle("-fx-padding: 20;");
 
-            connectionStatusLabel = createConnectionStatusLabel();
+            // общий лейбл сверху
+            layout.getChildren().add(globalConnectionStatusLabel);
 
             Label title = new Label("List of rooms:");
 
@@ -676,7 +650,7 @@ public class MainApp extends Application {
             refreshButton.setOnAction(e -> protocolHandler.requestRooms());
 
             HBox buttons = new HBox(10, createRoomButton, refreshButton);
-            layout.getChildren().addAll(connectionStatusLabel, title, listView, buttons);
+            layout.getChildren().addAll(title, listView, buttons);
 
             return new Scene(layout, 400, 400);
         }
@@ -727,10 +701,6 @@ public class MainApp extends Application {
             dialog.setScene(dialogScene);
             dialog.show();
         }
-
-        Label getConnectionStatusLabel() {
-            return connectionStatusLabel;
-        }
     }
 
     /**
@@ -738,7 +708,6 @@ public class MainApp extends Application {
      */
     private final class LobbyUi {
 
-        private Label connectionStatusLabel;
         private Label opponentLabel;
         private Label opponentStatusLabel;
         private Label playerStatusLabel;
@@ -756,7 +725,9 @@ public class MainApp extends Application {
             lobbyLayout.setStyle("-fx-padding: 20;");
 
             VBox topBox = new VBox(5);
-            connectionStatusLabel = createConnectionStatusLabel();
+
+            // общий лейбл
+            topBox.getChildren().add(globalConnectionStatusLabel);
 
             Button backButton = new Button("Back");
             backButton.setOnAction(e -> {
@@ -764,7 +735,7 @@ public class MainApp extends Application {
                 protocolHandler.requestRooms();
             });
 
-            topBox.getChildren().addAll(connectionStatusLabel, backButton);
+            topBox.getChildren().add(backButton);
             BorderPane.setMargin(topBox, new Insets(0, 0, 10, 0));
             lobbyLayout.setTop(topBox);
 
@@ -903,10 +874,6 @@ public class MainApp extends Application {
                 opponentStatusLabel.setText("Status: " + ("READY".equals(opponentStatus) ? "Ready" : "Not ready"));
             }
         }
-
-        Label getConnectionStatusLabel() {
-            return connectionStatusLabel;
-        }
     }
 
     /**
@@ -914,7 +881,6 @@ public class MainApp extends Application {
      */
     private final class GameUi {
 
-        private Label connectionStatusLabel;
         private Label playerScoreLabel;
         private Label opponentScoreLabel;
         private Label timerLabel;
@@ -937,7 +903,8 @@ public class MainApp extends Application {
             VBox topContainer = new VBox(10);
             topContainer.setAlignment(Pos.CENTER);
 
-            connectionStatusLabel = createConnectionStatusLabel();
+            // общий лейбл
+            topContainer.getChildren().add(globalConnectionStatusLabel);
 
             HBox scoreBox = new HBox(50);
             scoreBox.setAlignment(Pos.CENTER);
@@ -955,7 +922,7 @@ public class MainApp extends Application {
             timerLabel.setStyle("-fx-font-size: 18; -fx-padding: 10;");
             timerLabel.setAlignment(Pos.CENTER);
 
-            topContainer.getChildren().addAll(connectionStatusLabel, scoreBox, timerLabel);
+            topContainer.getChildren().addAll(scoreBox, timerLabel);
             gameLayout.setTop(topContainer);
 
             resultLabel = new Label("Waiting for round to start...");
@@ -1182,10 +1149,6 @@ public class MainApp extends Application {
             if (resultLabel != null) {
                 resultLabel.setText(text);
             }
-        }
-
-        Label getConnectionStatusLabel() {
-            return connectionStatusLabel;
         }
     }
 }
