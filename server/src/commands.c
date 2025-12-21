@@ -12,7 +12,6 @@ void mark_invalid_message(client_t *c) {
     if (!c) return;
     c->invalid_msg_streak++;
     if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
-        send_line(c->fd, "ERR 109 TOO_MANY_INVALID_COMMANDS");
         shutdown(c->fd, SHUT_RDWR);
     }
 }
@@ -35,6 +34,12 @@ void handle_hello(client_t *c, char *args) {
     }
     if (strlen(nick) > NICK_MAX) {
         send_line(c->fd, "ERR 100 BAD_FORMAT nick_too_long");
+        mark_invalid_message(c);
+        return;
+    }
+
+    if (c->state != ST_CONNECTED) {
+        send_line(c->fd, "ERR 101 INVALID_STATE");
         mark_invalid_message(c);
         return;
     }
@@ -187,7 +192,7 @@ void handle_leave(client_t *c) {
 
     mark_valid_message(c);
     remove_player_from_room(c, r);
-    send_line(c->fd, "LEFT_ROOM %d", r->id);
+    send_line(c->fd, "OK left_room %d", r->id);
 }
 
 void handle_move(client_t *c, char *args) {

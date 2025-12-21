@@ -21,6 +21,9 @@ public final class EventBus {
     private final Map<String, CopyOnWriteArrayList<Consumer<ServerEvent>>> listeners = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Consumer<ServerEvent>> wildcardListeners = new CopyOnWriteArrayList<>();
 
+    private int invalidStreak = 0;
+    private Runnable onTooManyInvalid;
+
     public EventBus() {
         this(Runnable::run);
     }
@@ -64,6 +67,9 @@ public final class EventBus {
         List<Consumer<ServerEvent>> handlers = listeners.get(event.getCommand());
         if (handlers != null) {
             handlers.forEach(listener -> dispatch(listener, event));
+        } else {
+            recordInvalidEvent();
+            LOG.warning("No listeners for event: " + event.getCommand());
         }
     }
 
@@ -99,6 +105,21 @@ public final class EventBus {
         @Override
         default void close() {
             unsubscribe();
+        }
+    }
+
+    public void setOnTooManyInvalid(Runnable action) {
+        this.onTooManyInvalid = action;
+    }
+
+    public void recordInvalidEvent() {
+        if (onTooManyInvalid == null) {
+            return;
+        }
+        invalidStreak = invalidStreak + 1;
+        if (invalidStreak >= 3) {
+            invalidStreak = 0;
+            onTooManyInvalid.run();
         }
     }
 }

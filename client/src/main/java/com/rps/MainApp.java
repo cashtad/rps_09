@@ -151,6 +151,16 @@ public class MainApp extends Application {
      * Input: none. Output: none. Side-effect: registers handlers on {@link EventBus}.
      */
     private void setupEventHandlers() {
+        eventBus.setOnTooManyInvalid(() -> {
+            Platform.runLater(() -> {
+                networkManager.disconnect();
+                showAlert("Disconnected", "Too many invalid messages received. Connection closed.");
+                updateConnectionStatus(false);
+                primaryStage.setScene(connectionUi.buildManualReconnectScene());
+            });
+
+        });
+
         // Optional logging of every event may be enabled here if required.
         eventBus.subscribeAll(event -> {
 
@@ -260,6 +270,7 @@ public class MainApp extends Application {
         String confirmedCommand = event.getPart(1);
         switch (confirmedCommand) {
             case "you_are_ready" -> lobbyUi.onPlayerReadyConfirmed();
+            case "left_room" -> lobbyUi.onRoomLeave();
             default -> {
                 // No-op for unknown confirmations.
             }
@@ -729,7 +740,7 @@ public class MainApp extends Application {
             Button backButton = new Button("Back");
             backButton.setOnAction(e -> {
                 protocolHandler.leaveRoom();
-                protocolHandler.requestRooms();
+//                protocolHandler.requestRooms();
             });
 
             topBox.getChildren().add(backButton);
@@ -756,6 +767,14 @@ public class MainApp extends Application {
             protocolHandler.requestOpponentInfo();
 
             return new Scene(lobbyLayout, 500, 300);
+        }
+
+        void onRoomLeave() {
+            opponentLabel = null;
+            opponentStatusLabel = null;
+            playerStatusLabel = null;
+            readyButton = null;
+            protocolHandler.requestRooms();
         }
 
         /**

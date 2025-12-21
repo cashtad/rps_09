@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
         c->timeout_state = CONNECTED;
         c->is_replaced = 0;
         c->last_ping_sent = time(NULL);
+        c->invalid_msg_streak = 0;
         gen_token(c->token);
 
         if (register_client(c) != 0) {
@@ -144,6 +145,9 @@ void *client_worker(void *arg) {
     setvbuf(f, NULL, _IOLBF, 0);
 
     while (fgets(buf, sizeof(buf), f) != NULL) {
+        if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
+            break;
+        }
         handle_line(c, buf);
     }
     close(c->fd);
