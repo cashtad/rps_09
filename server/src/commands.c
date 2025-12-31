@@ -74,6 +74,13 @@ void handle_create(client_t *c, char *args) {
         mark_invalid_message(c);
         return;
     }
+
+    if (strchr(args, ' ') != NULL) {
+        send_line(c->fd, "ERR 100 BAD_FORMAT invalid_room_name");
+        mark_invalid_message(c);
+        return;
+    }
+
     char *rname = strtok(args, " ");
     if (!rname) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_name");
