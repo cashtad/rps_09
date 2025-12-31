@@ -61,7 +61,7 @@ void process_round_result(room_t *r) {
 }
 
 void end_game(room_t *r) {
-    char *winner = (r->score_p1 >= 5) ? r->player1->nick : r->player2->nick;
+    char *winner = r->score_p1 >= 5 ? r->player1->nick : r->player2->nick;
 
     send_line(r->player1->fd, "GAME_END %s", winner);
     send_line(r->player2->fd, "GAME_END %s", winner);
@@ -98,10 +98,10 @@ void handle_round_timeout(room_t *r) {
     } else if (r->move_p2 == '\0' && r->move_p1 != '\0') {
         r->score_p1++;
     }
-    // Treat double-miss as a draw
+    // Treat a double-miss as a draw
 
-    char m1 = (r->move_p1 == '\0') ? 'X' : r->move_p1;
-    char m2 = (r->move_p2 == '\0') ? 'X' : r->move_p2;
+    const char m1 = r->move_p1 == '\0' ? 'X' : r->move_p1;
+    const char m2 = r->move_p2 == '\0' ? 'X' : r->move_p2;
 
     send_line(r->player1->fd, "ROUND_RESULT TIMEOUT %c %c %d %d",
               m1, m2, r->score_p1, r->score_p2);

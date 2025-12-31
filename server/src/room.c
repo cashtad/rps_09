@@ -17,7 +17,7 @@ int get_amount_of_players_in_room(const room_t *r) {
     return r->player_count;
 }
 
-client_t* get_opponent_in_room(room_t *r, client_t *c) {
+client_t* get_opponent_in_room(const room_t *r, const client_t *c) {
     if (r-> player_count < 2) return NULL;
     if (r->player1 == c) return r->player2;
     if (r->player2 == c) return r->player1;

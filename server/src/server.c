@@ -1,5 +1,5 @@
 // server/src/server.c
-#define _GNU_SOURCE
+#define GNU_SOURCE
 
 #include <arpa/inet.h>
 #include "../include/server.h"
@@ -28,9 +28,9 @@ int main(int argc, char **argv) {
         }
     }
     if (argc >= 3 && argv[2][0] != '\0') {
-        char *endptr = NULL;
-        long parsed_port = strtol(argv[2], &endptr, 10);
-        if (endptr && *endptr == '\0' && parsed_port > 0 && parsed_port <= 65535) {
+        char *end_ptr = NULL;
+        long parsed_port = strtol(argv[2], &end_ptr, 10);
+        if (end_ptr && *end_ptr == '\0' && parsed_port > 0 && parsed_port <= 65535) {
             port = (int)parsed_port;
         } else {
             fprintf(stderr, "Invalid port '%s', using default %d\n", argv[2], DEFAULT_BIND_PORT);
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < MAX_CLIENTS; i++) clients[i] = NULL;
     init_rooms();
 
-    // Start independent timeout monitor
+    // Start an independent timeout monitor
     pthread_t timer_thread;
     if (pthread_create(&timer_thread, NULL, room_timeout_worker, NULL) != 0) {
         perror("pthread_create(timer_thread)");

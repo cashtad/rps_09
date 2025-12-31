@@ -26,7 +26,7 @@ int send_line(const int fd, const char *fmt, ...) {
     size_t to_write = strlen(buf);
     ssize_t written = send(fd, buf, to_write, 0);
     // if (strcmp(fmt, "PING") != 0) {
-        printf("Sended: %s \n", fmt);
+        printf("Sent: %s \n", fmt);
     // }
 
     return (written == (ssize_t)to_write) ? 0 : -1;

@@ -70,7 +70,7 @@ int get_amount_of_players_in_room(const room_t *r);
  * @param c Input pointer to the client whose opponent is requested.
  * @return client_t* Output pointer to the opponent or NULL.
  */
-client_t* get_opponent_in_room(room_t *r, client_t *c);
+client_t* get_opponent_in_room(const room_t *r, const client_t *c);
 /**
  * @brief Indicates whether a client in a room has been replaced during reconnect.
  * @param r Input pointer to the room under inspection.

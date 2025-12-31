@@ -39,7 +39,7 @@ void unregister_client_without_lock(const client_t *c) {
     }
 }
 
-client_t* find_client_by_fd(int fd) {
+client_t* find_client_by_fd(const int fd) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i] != NULL && clients[i]->fd == fd)
             return clients[i];
@@ -69,7 +69,7 @@ client_t* find_client_by_name(const char *name) {
 
 void gen_token(char *out) {
     const char *hex = "0123456789abcdef";
-    srand((unsigned)time(NULL) ^ (uintptr_t)pthread_self());
+    srand((unsigned)time(NULL) ^ pthread_self());
     for (size_t i=0;i<30 && i+1<TOKEN_LEN;i++) out[i] = hex[rand() % 16];
     out[30 < TOKEN_LEN ? 30 : TOKEN_LEN-1] = '\0';
 }

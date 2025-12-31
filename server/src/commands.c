@@ -124,16 +124,16 @@ void handle_join(client_t *c, char *args) {
         mark_invalid_message(c);
         return;
     }
-    char *idstr = strtok(args, " ");
-    if (!idstr) {
+    char *id_str = strtok(args, " ");
+    if (!id_str) {
         send_line(c->fd, "ERR 100 BAD_FORMAT missing_room_id");
         mark_invalid_message(c);
         return;
     }
     char *ptr;
-    const int rid = strtol(idstr, &ptr, 10);
+    const int rid = strtol(id_str, &ptr, 10);
 
-    if (idstr == ptr || *ptr != '\0') {
+    if (id_str == ptr || *ptr != '\0') {
         send_line(c->fd, "ERR 100 BAD_FORMAT invalid_room_id");
         mark_invalid_message(c);
         return;
@@ -354,6 +354,8 @@ void handle_reconnect(client_t *c, char* args) {
     c->invalid_msg_streak = old_client->invalid_msg_streak;
     old_client->is_replaced = 1;
 
+    room_t *r;
+
 
     switch (c->state) {
         case ST_AUTH:
@@ -361,7 +363,7 @@ void handle_reconnect(client_t *c, char* args) {
             handle_list(c);
             break;
         case ST_IN_LOBBY:
-            room_t *r = find_room_by_id(c->room_id);
+            r = find_room_by_id(c->room_id);
             if (!r) {
                 send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
                 break;
@@ -379,35 +381,35 @@ void handle_reconnect(client_t *c, char* args) {
 
             break;
         case ST_PLAYING:
-            room_t *room = find_room_by_id(c->room_id);
-            if (!room) {
+            r = find_room_by_id(c->room_id);
+            if (!r) {
                 send_line(c->fd, "ERR 104 UNKNOWN_ROOM");
                 break;
             }
             // Replace the old client pointer with the reconnected instance
-            if (room->player1 == old_client) {
-                room->player1 = c;
+            if (r->player1 == old_client) {
+                r->player1 = c;
             } else {
-                room->player2 = c;
+                r->player2 = c;
             }
 
             // Refresh the room metadata to resume gameplay
-            room->state = RM_PLAYING;
-            room->awaiting_moves = 1;
-            room->round_start_time = time(NULL);
-            client_t *opponent = get_opponent_in_room(room, c);
+            r->state = RM_PLAYING;
+            r->awaiting_moves = 1;
+            r->round_start_time = time(NULL);
+            client_t *opponent = get_opponent_in_room(r, c);
             // Check whether this player already sent a move before disconnecting
-            char performed_move = (room->player1 == c) ? room->move_p1 : room->move_p2;
+            char performed_move = (r->player1 == c) ? r->move_p1 : r->move_p2;
             if (performed_move != '\0') {
                 performed_move = 'X';
             }
             send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
-                     room->score_p1, room->score_p2, room->round_number, performed_move);
+                     r->score_p1, r->score_p2, r->round_number, performed_move);
 
             if (opponent) {
-                performed_move = (room->player1 == c) ? room->move_p2 : room->move_p1;
+                performed_move = (r->player1 == c) ? r->move_p2 : r->move_p1;
                 send_line(opponent->fd, "GAME_RESUMED %d %d %d %c",
-                         room->round_number, room->score_p1, room->score_p2, performed_move);
+                         r->round_number, r->score_p1, r->score_p2, performed_move);
             }
 
             break;
@@ -429,7 +431,7 @@ void handle_line(client_t *c, char *line) {
     char *args = strtok(NULL, "");
 
     if (strcmp(line, "PONG") != 0) {
-        printf("Recieved from client %s: %s\n", c->nick, line);
+        printf("Received from client %s: %s\n", c->nick, line);
     }
 
     pthread_mutex_lock(&global_lock);
