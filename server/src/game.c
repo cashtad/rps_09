@@ -9,10 +9,10 @@ void start_game(room_t *r) {
     r->score_p2 = 0;
 
     // Inform both players that gameplay is starting
-    r->player1->state = ST_PLAYING;
-    r->player2->state = ST_PLAYING;
     send_line(r->player1->fd, "GAME_START");
     send_line(r->player2->fd, "GAME_START");
+    r->player1->state = ST_PLAYING;
+    r->player2->state = ST_PLAYING;
 
     // Trigger the first round immediately
     start_next_round(r);

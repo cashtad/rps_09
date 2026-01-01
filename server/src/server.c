@@ -252,12 +252,10 @@ void process_client_timeout(client_t *c) {
             c->state = ST_IN_LOBBY;
             client_t *opponent = get_opponent_in_room(r, c);
             if (opponent) {
-                const char *status = (opponent->state == ST_READY) ? "READY" : "NOT_READY";
-                send_line(opponent->fd, "OPPONENT_INFO %s %s", c->nick, status);
+                send_line(opponent->fd, "OPPONENT_INFO %s NOT_READY", c->nick);
             }
             break;
         case ST_PLAYING:
-
             room_t *room = find_room_by_id(c->room_id);
 
             room->state = RM_PAUSED;
