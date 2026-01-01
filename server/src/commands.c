@@ -182,7 +182,6 @@ void handle_ready(client_t *c) {
     c->state = ST_READY;
     send_line(c->fd, "OK you_are_ready");
 
-    room_t *r = find_room_by_id(c->room_id);
     if (!r || r->player_count == 1) return;
 
     client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
