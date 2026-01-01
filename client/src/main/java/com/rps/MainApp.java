@@ -740,7 +740,6 @@ public class MainApp extends Application {
             Button backButton = new Button("Back");
             backButton.setOnAction(e -> {
                 protocolHandler.leaveRoom();
-//                protocolHandler.requestRooms();
             });
 
             topBox.getChildren().add(backButton);
@@ -1052,6 +1051,7 @@ public class MainApp extends Application {
                     setGameStatusText("Game ended - opponent left the game.");
                     showAlert("Game Ended", "Opponent has left the game. You win by default!");
                 } else {
+                    setGameStatusText("Game ended!");
                     String message = (playerProfile != null && winner.equals(playerProfile.getName()))
                             ? "Congratulations! You won the game!"
                             : "Game Over! " + winner + " won!";
@@ -1173,6 +1173,13 @@ public class MainApp extends Application {
          */
         void setResultText(String text) {
             if (resultLabel != null) {
+                if (text.contains("win")) {
+                    resultLabel.setStyle("-fx-text-fill: green; -fx-font-size: 16;");
+                } else if (text.contains("lose")) {
+                    resultLabel.setStyle("-fx-text-fill: red; -fx-font-size: 16;");
+                } else {
+                    resultLabel.setStyle("-fx-text-fill: black; -fx-font-size: 16;");
+                }
                 resultLabel.setText(text);
             }
         }
