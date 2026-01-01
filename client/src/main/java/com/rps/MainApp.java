@@ -229,7 +229,7 @@ public class MainApp extends Application {
         eventBus.subscribe("GAME_PAUSED", event -> Platform.runLater(() -> {
             gameUi.stopTimer();
             gameUi.disableMoveButtons();
-            gameUi.setResultText("Game paused - opponent disconnected");
+            gameUi.setGameStatusText("Game paused - opponent disconnected");
             showAlert("Game Paused", "Opponent has disconnected. Waiting for reconnection...");
         }));
 
@@ -243,10 +243,10 @@ public class MainApp extends Application {
                 gameUi.updateScores(score1, score2);
                 if (performedMove == 'X') {
                     gameUi.enableMoveButtons();
-                    gameUi.setResultText("Game resumed - Make your move!");
+                    gameUi.setGameStatusText("Game resumed - Make your move!");
                 } else {
                     gameUi.disableMoveButtons();
-                    gameUi.setResultText("Game resumed - Waiting for opponent...");
+                    gameUi.setGameStatusText("Game resumed - Waiting for opponent...");
                 }
                 gameUi.startTimer(10);
                 showAlert("Game Resumed", "Continue playing!");
@@ -257,7 +257,7 @@ public class MainApp extends Application {
         eventBus.subscribe("MOVE_ACCEPTED", event ->
                 Platform.runLater(() -> {
                     gameUi.disableMoveButtons();
-                    gameUi.setResultText("Waiting for opponent...");
+                    gameUi.setGameStatusText("Waiting for opponent...");
                 }));
     }
 
@@ -299,10 +299,10 @@ public class MainApp extends Application {
 
                 if (performedMove != 'X') {
                     gameUi.disableMoveButtons();
-                    gameUi.setResultText("Reconnected! Round " + round + " - Waiting for opponent...");
+                    gameUi.setGameStatusText("Reconnected! Round " + round + " - Waiting for opponent...");
                 } else {
                     gameUi.enableMoveButtons();
-                    gameUi.setResultText("Reconnected! Round " + round + " - Make your move!");
+                    gameUi.setGameStatusText("Reconnected! Round " + round + " - Make your move!");
                     gameUi.startTimer(10);
                 }
             }
@@ -900,6 +900,7 @@ public class MainApp extends Application {
         private Label playerScoreLabel;
         private Label opponentScoreLabel;
         private Label timerLabel;
+        private Label gameStatusLabel;
         private Label resultLabel;
         private Button rockButton;
         private Button paperButton;
@@ -941,11 +942,20 @@ public class MainApp extends Application {
             topContainer.getChildren().addAll(scoreBox, timerLabel);
             gameLayout.setTop(topContainer);
 
-            resultLabel = new Label("Waiting for round to start...");
-            resultLabel.setStyle("-fx-font-size: 16; -fx-padding: 20;");
+            VBox labelContainer = new VBox(10);
+            labelContainer.setAlignment(Pos.CENTER);
+            labelContainer.setStyle("-fx-padding: 20; -fx-font-size: 16");
+
+            gameStatusLabel = new Label("Waiting for round to start...");
+            gameStatusLabel.setAlignment(Pos.CENTER);
+            gameStatusLabel.setWrapText(true);
+
+            resultLabel = new Label("");
             resultLabel.setAlignment(Pos.CENTER);
             resultLabel.setWrapText(true);
-            gameLayout.setCenter(resultLabel);
+
+            labelContainer.getChildren().addAll(gameStatusLabel, resultLabel);
+            gameLayout.setCenter(labelContainer);
 
             HBox buttonBox = new HBox(20);
             buttonBox.setAlignment(Pos.CENTER);
@@ -989,7 +999,7 @@ public class MainApp extends Application {
             int roundNumber = Integer.parseInt(event.getPart(1));
             Platform.runLater(() -> {
                 enableMoveButtons();
-                setResultText("Round " + roundNumber + " - Make your move!");
+                setGameStatusText("Round " + roundNumber + " - Make your move!");
                 startTimer(10);
             });
         }
@@ -1039,7 +1049,7 @@ public class MainApp extends Application {
                 stopTimer();
                 if ("opponent_left".equals(winner)) {
                     disableMoveButtons();
-                    setResultText("Game ended - opponent left the game.");
+                    setGameStatusText("Game ended - opponent left the game.");
                     showAlert("Game Ended", "Opponent has left the game. You win by default!");
                 } else {
                     String message = (playerProfile != null && winner.equals(playerProfile.getName()))
@@ -1164,6 +1174,12 @@ public class MainApp extends Application {
         void setResultText(String text) {
             if (resultLabel != null) {
                 resultLabel.setText(text);
+            }
+        }
+
+        void setGameStatusText(String text) {
+            if (gameStatusLabel != null) {
+                gameStatusLabel.setText(text);
             }
         }
     }
