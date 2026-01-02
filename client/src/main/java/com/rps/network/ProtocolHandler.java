@@ -37,9 +37,9 @@ public final class ProtocolHandler {
     }
 
     private void registerInternalHandlers() {
-        eventBus.subscribe("ROOM_LIST", roomListAssembler::handleHeader);
+        eventBus.subscribe("ROOM_LIST", roomListAssembler::handleHeader); // TODO ???
         eventBus.subscribe("ROOM", roomListAssembler::handleRoom);
-        eventBus.subscribe("ROOM_CREATED", event -> requestRooms());
+        eventBus.subscribe("ROOM_CREATED", event -> requestRooms()); // TODO ???
         eventBus.subscribe("PING", event -> respondPing());
     }
 

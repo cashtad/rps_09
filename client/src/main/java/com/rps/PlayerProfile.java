@@ -1,11 +1,16 @@
 package com.rps;
 
+import java.util.logging.Logger;
+
 /**
  * Holds local player identity and session state.
  * <p>
  * Used by client to correlate server messages with local user.
  */
 public class PlayerProfile {
+
+    private static final Logger LOG = Logger.getLogger(PlayerProfile.class.getName());
+
 
     /** Internal numeric identifier (optional). */
     private int id;
@@ -26,6 +31,8 @@ public class PlayerProfile {
         AUTHENTICATED,
         /** Player is inside lobby/room. */
         IN_LOBBY,
+        /** Player is inside lobby/room and ready to play. */
+        READY,
         /** Player is in active game session. */
         PLAYING,
     }
@@ -41,6 +48,12 @@ public class PlayerProfile {
     public PlayerProfile(String name) {
         this.name = name;
     }
+
+    /**
+     * Constructs player profile with default values.
+     *
+     */
+    public PlayerProfile() {}
 
     /**
      * Returns internal id.
@@ -111,7 +124,9 @@ public class PlayerProfile {
      * @param status new {@link PlayerStatus} value.
      */
     public void setStatus(PlayerStatus status) {
+
         this.status = status;
+        LOG.info("Player status changed to " + status);
     }
 
     /**

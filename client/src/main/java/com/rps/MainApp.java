@@ -18,6 +18,7 @@ import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 /**
  * Main JavaFX entry point for the Rock-Paper-Scissors client.
@@ -30,6 +31,8 @@ import java.util.Objects;
  * </ul>
  */
 public class MainApp extends Application {
+
+    private static final Logger LOG = Logger.getLogger(MainApp.class.getName());
 
     /** Handles low-level TCP networking and timeouts. */
     private NetworkManager networkManager;
@@ -82,6 +85,8 @@ public class MainApp extends Application {
         eventBus = EventBus.createJavaFxBus();
         protocolHandler = new ProtocolHandler(networkManager, eventBus);
         reconnectionManager = new ReconnectionManager(networkManager, protocolHandler, eventBus);
+
+        playerProfile = new PlayerProfile();
 
         // Instantiate UI helpers that encapsulate scene construction.
         connectionUi = new ConnectionUi();
@@ -154,48 +159,21 @@ public class MainApp extends Application {
         eventBus.setOnTooManyInvalid(() -> {
             Platform.runLater(() -> {
                 networkManager.disconnect();
-                showAlert("Disconnected", "Too many invalid messages received. Connection closed.");
+                showAlert("Disconnected", "Too many invalid messages received from server. Connection closed.");
                 updateConnectionStatus(false);
                 primaryStage.setScene(connectionUi.buildManualReconnectScene());
             });
 
         });
 
-        // Optional logging of every event may be enabled here if required.
-        eventBus.subscribeAll(event -> {
-
-        });
-
         // Welcome message means connection established and token received.
-        eventBus.subscribe("WELCOME", event -> {
-            String token = event.getPart(1);
-            playerProfile = new PlayerProfile(connectionUi.getEnteredName());
-            playerProfile.setToken(token);
-            playerProfile.setStatus(PlayerProfile.PlayerStatus.CONNECTED);
-
-            connectionUi.onConnected(token);
-            updateConnectionStatus(true);
-        });
+        eventBus.subscribe("WELCOME", connectionUi::handleWelcome);
 
         // Server finished sending a rooms list.
-        eventBus.subscribe("ROOMS_LOADED", event -> {
-            String roomsData = event.getPart(1);
-            List<String> roomList = roomsData != null && !roomsData.isEmpty()
-                    ? List.of(roomsData.split("\\|"))
-                    : new ArrayList<>();
-            primaryStage.setScene(roomsUi.buildRoomsScene(roomList));
-            updateConnectionStatus(isConnected);
-        });
+        eventBus.subscribe("ROOMS_LOADED", roomsUi::handleRoomsLoaded);
 
         // Client joined a room and should see lobby scene.
-        eventBus.subscribe("ROOM_JOINED", event -> {
-            String roomId = event.getPart(1);
-            if (playerProfile != null) {
-                playerProfile.setStatus(PlayerProfile.PlayerStatus.IN_LOBBY);
-            }
-            primaryStage.setScene(lobbyUi.buildLobbyScene(roomId, playerProfile != null ? playerProfile.getName() : ""));
-            updateConnectionStatus(isConnected);
-        });
+        eventBus.subscribe("ROOM_JOINED", roomsUi::handleRoomJoined);
 
         // Error message from server.
         eventBus.subscribe("ERR", event -> {
@@ -226,32 +204,9 @@ public class MainApp extends Application {
         eventBus.subscribe("GAME_END", gameUi::handleGameEnd);
 
         // Game pause / resume events.
-        eventBus.subscribe("GAME_PAUSED", event -> Platform.runLater(() -> {
-            gameUi.stopTimer();
-            gameUi.disableMoveButtons();
-            gameUi.setGameStatusText("Game paused - opponent disconnected");
-            showAlert("Game Paused", "Opponent has disconnected. Waiting for reconnection...");
-        }));
+        eventBus.subscribe("GAME_PAUSED", gameUi::handleGamePaused);
 
-        eventBus.subscribe("GAME_RESUMED", event -> {
-            int roundNumber = Integer.parseInt(event.getPart(1));
-            int score1 = Integer.parseInt(event.getPart(2));
-            int score2 = Integer.parseInt(event.getPart(3));
-            char performedMove = event.getParts().length >= 5 ? event.getPart(4).charAt(0) : 'X';
-
-            Platform.runLater(() -> {
-                gameUi.updateScores(score1, score2);
-                if (performedMove == 'X') {
-                    gameUi.enableMoveButtons();
-                    gameUi.setGameStatusText("Game resumed - Make your move!");
-                } else {
-                    gameUi.disableMoveButtons();
-                    gameUi.setGameStatusText("Game resumed - Waiting for opponent...");
-                }
-                gameUi.startTimer(10);
-                showAlert("Game Resumed", "Continue playing!");
-            });
-        });
+        eventBus.subscribe("GAME_RESUMED", gameUi::handleGameResumed);
 
         // Move accepted by server.
         eventBus.subscribe("MOVE_ACCEPTED", event ->
@@ -382,8 +337,11 @@ public class MainApp extends Application {
 
         try {
             networkManager.connect(currentHost, currentPort);
-            protocolHandler.sendHello(nickname);
+
+            this.playerProfile.setStatus(PlayerProfile.PlayerStatus.CONNECTED);
+            LOG.info("Player status changed to %s".formatted(this.playerProfile.getStatus()));
             updateConnectionStatus(true);
+            protocolHandler.sendHello(nickname);
         } catch (Exception ex) {
             showAlert("Connection error", ex.getMessage());
             updateConnectionStatus(false);
@@ -434,6 +392,8 @@ public class MainApp extends Application {
         });
     }
 
+
+
     @Override
     public void stop() throws Exception {
         super.stop();
@@ -466,7 +426,6 @@ public class MainApp extends Application {
         private TextField portField;
         private Button connectButton;
         private Button listRoomsButton;
-        private Label statusLabel;
 
         /**
          * Builds the initial login scene with fields for nickname, host and port.
@@ -486,7 +445,7 @@ public class MainApp extends Application {
             nameField = new TextField();
             nameField.setPromptText("Enter your name");
 
-            hostField = new TextField("10.0.2.2");
+            hostField = new TextField("0.0.0.0");
             hostField.setPromptText("Server IP");
 
             portField = new TextField("2500");
@@ -494,9 +453,6 @@ public class MainApp extends Application {
 
             connectButton = new Button("Connect");
             connectButton.setPrefWidth(200);
-
-            statusLabel = new Label();
-            statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
 
             listRoomsButton = new Button("List of rooms");
             listRoomsButton.setDisable(true);
@@ -510,7 +466,6 @@ public class MainApp extends Application {
                     new Label("Server IP:"), hostField,
                     new Label("Port:"), portField,
                     connectButton,
-                    statusLabel,
                     listRoomsButton
             );
 
@@ -554,7 +509,6 @@ public class MainApp extends Application {
          * @param token authentication token provided by the server.
          */
         void onConnected(String token) {
-            statusLabel.setText("Connected as " + token);
             connectButton.setDisable(true);
             listRoomsButton.setDisable(false);
         }
@@ -573,10 +527,21 @@ public class MainApp extends Application {
             if (listRoomsButton != null) {
                 listRoomsButton.setDisable(true);
             }
-            if (statusLabel != null) {
-                statusLabel.setText("");
-            }
             primaryStage.setScene(buildLoginScene());
+        }
+
+        void handleWelcome(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.CONNECTED) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+            String token = event.getPart(1);
+            playerProfile.setName(connectionUi.getEnteredName());
+            playerProfile.setToken(token);
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.AUTHENTICATED);
+
+            connectionUi.onConnected(token);
+            updateConnectionStatus(true);
         }
 
         String getEnteredName() {
@@ -709,6 +674,31 @@ public class MainApp extends Application {
             dialog.setScene(dialogScene);
             dialog.show();
         }
+
+        void handleRoomsLoaded(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.AUTHENTICATED) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+            String roomsData = event.getPart(1);
+            List<String> roomList = roomsData != null && !roomsData.isEmpty()
+                    ? List.of(roomsData.split("\\|"))
+                    : new ArrayList<>();
+            primaryStage.setScene(roomsUi.buildRoomsScene(roomList));
+            updateConnectionStatus(isConnected);
+        }
+
+        void handleRoomJoined(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.AUTHENTICATED) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+
+            String roomId = event.getPart(1);
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.IN_LOBBY);
+            primaryStage.setScene(lobbyUi.buildLobbyScene(roomId, playerProfile != null ? playerProfile.getName() : ""));
+            updateConnectionStatus(isConnected);
+        }
     }
 
     /**
@@ -769,6 +759,7 @@ public class MainApp extends Application {
         }
 
         void onRoomLeave() {
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.AUTHENTICATED);
             opponentLabel = null;
             opponentStatusLabel = null;
             playerStatusLabel = null;
@@ -780,6 +771,7 @@ public class MainApp extends Application {
          * Called by confirmation handler when server acknowledges that current player is ready.
          */
         void onPlayerReadyConfirmed() {
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.READY);
             if (readyButton != null) {
                 readyButton.setDisable(true);
             }
@@ -793,7 +785,13 @@ public class MainApp extends Application {
          *
          * @param event event with command {@code OPPONENT_INFO}.
          */
-        void handleOpponentInfo(ServerEvent event) {
+        public void handleOpponentInfo(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.IN_LOBBY
+            && playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+
             String opponentName = event.getPart(1);
             if (opponentLabel == null) {
                 return;
@@ -815,6 +813,11 @@ public class MainApp extends Application {
          * @param event event with command {@code PLAYER_JOINED}.
          */
         void handlePlayerJoined(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.IN_LOBBY
+            && playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             String opponentName = event.getPart(1);
             if (opponentLabel != null && playerProfile != null) {
                 assert opponentName != null;
@@ -831,6 +834,11 @@ public class MainApp extends Application {
          * @param event event with command {@code PLAYER_READY}.
          */
         void handlePlayerReady(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.IN_LOBBY
+            && playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             String readyPlayer = event.getPart(1);
             if (playerProfile != null && Objects.equals(readyPlayer, playerProfile.getName())) {
                 if (playerStatusLabel != null) {
@@ -850,6 +858,11 @@ public class MainApp extends Application {
          * @param event event with command {@code PLAYER_UNREADY}.
          */
         void handlePlayerUnready(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.IN_LOBBY
+            && playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             String unreadyPlayer = event.getPart(1);
             if (playerProfile != null && Objects.equals(unreadyPlayer, playerProfile.getName())) {
                 if (playerStatusLabel != null) {
@@ -869,6 +882,11 @@ public class MainApp extends Application {
          * @param event event with command {@code PLAYER_LEFT}.
          */
         void handlePlayerLeft(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.IN_LOBBY
+            && playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             if (opponentLabel != null) {
                 opponentLabel.setText("Enemy: -");
                 opponentStatusLabel.setText("Status: -");
@@ -975,6 +993,8 @@ public class MainApp extends Application {
             buttonBox.getChildren().addAll(rockButton, paperButton, scissorsButton);
             gameLayout.setBottom(buttonBox);
 
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.PLAYING);
+
             disableMoveButtons();
             return new Scene(gameLayout, 600, 500);
         }
@@ -985,6 +1005,10 @@ public class MainApp extends Application {
          * @param event server event with command {@code GAME_START}.
          */
         void showGameScene(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.READY) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             primaryStage.setScene(buildGameScene());
             updateConnectionStatus(isConnected);
         }
@@ -995,6 +1019,10 @@ public class MainApp extends Application {
          * @param event event with command {@code ROUND_START}.
          */
         void handleRoundStart(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.PLAYING) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             int roundNumber = Integer.parseInt(event.getPart(1));
             Platform.runLater(() -> {
                 enableMoveButtons();
@@ -1009,6 +1037,10 @@ public class MainApp extends Application {
          * @param event event with command {@code ROUND_RESULT}.
          */
         void handleRoundResult(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.PLAYING) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             String winner = event.getPart(1);
             char movePlayers = event.getPart(2).charAt(0);
             char moveOpponents = event.getPart(3).charAt(0);
@@ -1043,6 +1075,10 @@ public class MainApp extends Application {
          * @param event event with command {@code GAME_END}.
          */
         void handleGameEnd(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.PLAYING) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
             String winner = event.getPart(1);
             Platform.runLater(() -> {
                 stopTimer();
@@ -1058,6 +1094,41 @@ public class MainApp extends Application {
                     showAlert("Game Finished", message);
                 }
                 protocolHandler.requestRooms();
+            });
+        }
+
+        void handleGamePaused(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.PLAYING) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+            stopTimer();
+            disableMoveButtons();
+            setGameStatusText("Game paused - opponent disconnected");
+            showAlert("Game Paused", "Opponent has disconnected. Waiting for reconnection...");
+        }
+
+        void handleGameResumed(ServerEvent event) {
+            if (playerProfile.getStatus() != PlayerProfile.PlayerStatus.PLAYING) {
+                eventBus.recordInvalidEvent();
+                return;
+            }
+            int roundNumber = Integer.parseInt(event.getPart(1));
+            int score1 = Integer.parseInt(event.getPart(2));
+            int score2 = Integer.parseInt(event.getPart(3));
+            char performedMove = event.getParts().length >= 5 ? event.getPart(4).charAt(0) : 'X';
+
+            Platform.runLater(() -> {
+                gameUi.updateScores(score1, score2);
+                if (performedMove == 'X') {
+                    gameUi.enableMoveButtons();
+                    gameUi.setGameStatusText("Game resumed - Make your move!");
+                } else {
+                    gameUi.disableMoveButtons();
+                    gameUi.setGameStatusText("Game resumed - Waiting for opponent...");
+                }
+                gameUi.startTimer(10);
+                showAlert("Game Resumed", "Continue playing!");
             });
         }
 
