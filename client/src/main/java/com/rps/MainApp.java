@@ -134,6 +134,7 @@ public class MainApp extends Application {
             networkManager.disconnect();
             Platform.runLater(() -> {
                 updateConnectionStatus(false);
+                playerProfile.setStatus(null);
                 primaryStage.setScene(connectionUi.buildManualReconnectScene());
             });
         });
@@ -249,6 +250,7 @@ public class MainApp extends Application {
                 int round = Integer.parseInt(parts[3]);
                 char performedMove = parts.length >= 5 ? parts[4].charAt(0) : 'X';
 
+                playerProfile.setStatus(PlayerProfile.PlayerStatus.PLAYING);
                 primaryStage.setScene(gameUi.buildGameScene());
                 gameUi.updateScores(score1, score2);
 
@@ -260,10 +262,13 @@ public class MainApp extends Application {
                     gameUi.setGameStatusText("Reconnected! Round " + round + " - Make your move!");
                     gameUi.startTimer(10);
                 }
+            } else {
+                eventBus.recordInvalidEvent();
             }
         } else if (state.startsWith("LOBBY")) {
             String[] parts = state.split(" ");
             if (playerProfile != null) {
+                playerProfile.setStatus(PlayerProfile.PlayerStatus.IN_LOBBY);
                 primaryStage.setScene(lobbyUi.buildLobbyScene("reconnected", playerProfile.getName()));
 
                 if (parts.length >= 2 && !"NONE".equals(parts[1])) {
@@ -273,6 +278,7 @@ public class MainApp extends Application {
                 }
             }
         } else {
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.AUTHENTICATED);
             protocolHandler.requestRooms();
         }
     }
@@ -444,6 +450,7 @@ public class MainApp extends Application {
             nameField = new TextField();
             nameField.setPromptText("Enter your name");
 
+
             hostField = new TextField("0.0.0.0");
             hostField.setPromptText("Server IP");
 
@@ -467,6 +474,8 @@ public class MainApp extends Application {
                     connectButton,
                     listRoomsButton
             );
+
+            playerProfile = new PlayerProfile();
 
             return new Scene(layout, 350, 400);
         }
@@ -992,8 +1001,6 @@ public class MainApp extends Application {
             buttonBox.getChildren().addAll(rockButton, paperButton, scissorsButton);
             gameLayout.setBottom(buttonBox);
 
-            playerProfile.setStatus(PlayerProfile.PlayerStatus.PLAYING);
-
             disableMoveButtons();
             return new Scene(gameLayout, 600, 500);
         }
@@ -1008,6 +1015,7 @@ public class MainApp extends Application {
                 eventBus.recordInvalidEvent();
                 return;
             }
+            playerProfile.setStatus(PlayerProfile.PlayerStatus.PLAYING);
             primaryStage.setScene(buildGameScene());
             updateConnectionStatus(isConnected);
         }
