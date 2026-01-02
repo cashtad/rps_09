@@ -339,7 +339,6 @@ public class MainApp extends Application {
             networkManager.connect(currentHost, currentPort);
 
             this.playerProfile.setStatus(PlayerProfile.PlayerStatus.CONNECTED);
-            LOG.info("Player status changed to %s".formatted(this.playerProfile.getStatus()));
             updateConnectionStatus(true);
             protocolHandler.sendHello(nickname);
         } catch (Exception ex) {
@@ -1093,6 +1092,7 @@ public class MainApp extends Application {
                             : "Game Over! " + winner + " won!";
                     showAlert("Game Finished", message);
                 }
+                playerProfile.setStatus(PlayerProfile.PlayerStatus.AUTHENTICATED);
                 protocolHandler.requestRooms();
             });
         }
