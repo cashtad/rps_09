@@ -66,6 +66,7 @@ public final class EventBus {
         wildcardListeners.forEach(listener -> dispatch(listener, event));
         List<Consumer<ServerEvent>> handlers = listeners.get(event.getCommand());
         if (handlers != null) {
+            recordValidEvent();
             handlers.forEach(listener -> dispatch(listener, event));
         } else {
             recordInvalidEvent();
@@ -110,6 +111,10 @@ public final class EventBus {
 
     public void setOnTooManyInvalid(Runnable action) {
         this.onTooManyInvalid = action;
+    }
+
+    public void recordValidEvent() {
+        invalidStreak = 0;
     }
 
     public void recordInvalidEvent() {
