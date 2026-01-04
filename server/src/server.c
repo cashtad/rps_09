@@ -151,9 +151,15 @@ void *client_worker(void *arg) {
         }
         handle_line(c, buf);
     }
-    fprintf(stderr, "Client %s fd:%d disconnected\n", c->nick, c->fd);
     close(c->fd);
     pthread_mutex_lock(&global_lock);
+
+    if (c->timeout_state == SOFT_TIMEOUT) {
+        fprintf(stderr, "Client %s fd:%d disconnected, waiting for reconnect\n", c->nick, c->fd);
+        pthread_mutex_unlock(&global_lock);
+        return NULL;
+    }
+    fprintf(stderr, "Client %s fd:%d fully disconnected, deleting him from everywhere\n", c->nick, c->fd);
     process_client_hard_disconnection(c);
     unregister_client_without_lock(c);
     pthread_mutex_unlock(&global_lock);
@@ -187,6 +193,7 @@ void process_client_hard_disconnection(client_t *c) {
                     opponent->state = ST_AUTH;
                     opponent->room_id = -1;
                 }
+                printf("Room %s ended due to client %s fd%d disconnect\n", room->name, c->nick, c->fd);
                 remove_room(room);
             }
             break;
@@ -222,15 +229,19 @@ void check_clients(void) {
 
         // 1) If no data has been received recently, mark the client as stalled
         if (now - c->last_seen >= CLIENT_TIMEOUT_SOFT && c->timeout_state == CONNECTED) {
-            fprintf(stderr, "Client soft timeout: %s\n", c->nick);
+            fprintf(stderr, "check_clients: Client soft timeout: %s\n", c->nick);
             c->timeout_state = SOFT_TIMEOUT;
             process_client_timeout(c);
+            shutdown(c->fd, SHUT_RDWR);
             continue;
         }
 
         // 2) Force a hard disconnect if the client never recovered after the soft timeout
         if (now - c->last_seen >= CLIENT_TIMEOUT_HARD && c->timeout_state == SOFT_TIMEOUT) {
             fprintf(stderr, "Client hard timeout: %s\n", c->nick);
+            process_client_hard_disconnection(c);
+            unregister_client_without_lock(c);
+            c->timeout_state = HARD_TIMEOUT;
             shutdown(c->fd, SHUT_RDWR);
             continue;
         }

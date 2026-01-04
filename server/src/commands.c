@@ -335,7 +335,7 @@ void handle_reconnect(client_t *c, char* args) {
 
     client_t *old_client = find_client_by_token(token);
     if (!old_client) {
-        send_line(c->fd, "ERR 110 INVALID_TOKEN");
+        send_line(c->fd, "ERR 110");
         mark_invalid_message(c);
         shutdown(c->fd, SHUT_RDWR);
         return;
@@ -418,8 +418,8 @@ void handle_reconnect(client_t *c, char* args) {
             send_line(c->fd, "REC_OK CONNECTED");
             break;
     }
-
-    shutdown(old_client->fd, SHUT_RDWR);
+    unregister_client_without_lock(old_client);
+    free(old_client);  // Старый поток уже завершился без free()
 }
 
 void handle_line(client_t *c, char *line) {

@@ -31,6 +31,7 @@ void unregister_client(const client_t *c) {
 }
 
 void unregister_client_without_lock(const client_t *c) {
+    if (c == NULL) return;
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i] == c) {
             clients[i] = NULL;
