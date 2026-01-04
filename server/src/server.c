@@ -146,13 +146,14 @@ void *client_worker(void *arg) {
 
     while (fgets(buf, sizeof(buf), f) != NULL) {
         if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
+            printf("Client %s fd:%d exceeded invalid message limit, disconnecting\n", c->nick, c->fd);
             break;
         }
         handle_line(c, buf);
     }
+    fprintf(stderr, "Client %s fd:%d disconnected\n", c->nick, c->fd);
     close(c->fd);
     pthread_mutex_lock(&global_lock);
-    fprintf(stderr, "Client %s fd:%d disconnected\n", c->nick, c->fd);
     process_client_hard_disconnection(c);
     unregister_client_without_lock(c);
     pthread_mutex_unlock(&global_lock);
