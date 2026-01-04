@@ -47,14 +47,20 @@ client_t* find_client_by_fd(const int fd) {
     return NULL;
 }
 client_t* find_client_by_token(const char* token) {
-    if (!token) return NULL;
+    if (!token) {printf("No token was provided"); return NULL;}
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i] != NULL && clients[i]->token[0] != '\0' && 
-            strcmp(clients[i]->token, token) == 0) {
-            return clients[i];
+        if (clients[i] != NULL) {
+            if (clients[i]->token[0] != '\0') {
+                if (strcmp(clients[i]->token, token) == 0) {
+                    return clients[i];
+                } else {
+                    printf("%s != %s", token, clients[i]->token);
+                }
+            }
         }
     }
+    printf("Didnt find any client with this token");
     return NULL;
 }
 
