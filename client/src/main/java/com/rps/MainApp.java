@@ -201,7 +201,7 @@ public class MainApp extends Application {
 
         // Game round events.
         eventBus.subscribe("R_ST", gameUi::handleRoundStart);
-        eventBus.subscribe("R_RES", gameUi::handleRoundResult);
+        eventBus.subscribe("R_RE", gameUi::handleRoundResult);
         eventBus.subscribe("G_END", gameUi::handleGameEnd);
 
         // Game pause / resume events.
@@ -1068,7 +1068,7 @@ public class MainApp extends Application {
                 String resultText;
                 if ("DRAW".equals(winner)) {
                     resultText = "Draw! You: " + moveStr1 + " vs " + moveStr2;
-                } else if ("TIMEOUT".equals(winner)) {
+                } else if ("T".equals(winner)) {
                     resultText = "Timeout! You: " + moveStr1 + " vs " + moveStr2;
                 } else if (playerProfile != null && winner.equals(playerProfile.getName())) {
                     resultText = "You win! You: " + moveStr1 + " vs " + moveStr2;
@@ -1093,7 +1093,7 @@ public class MainApp extends Application {
             String winner = event.getPart(1);
             Platform.runLater(() -> {
                 stopTimer();
-                if ("opponent_left".equals(winner)) {
+                if ("opp_l".equals(winner)) {
                     disableMoveButtons();
                     setGameStatusText("Game ended - opponent left the game.");
                     showAlert("Game Ended", "Opponent has left the game. You win by default!");
