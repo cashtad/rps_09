@@ -9,8 +9,8 @@ void start_game(room_t *r) {
     r->score_p2 = 0;
 
     // Inform both players that gameplay is starting
-    send_line(r->player1->fd, "GAME_START");
-    send_line(r->player2->fd, "GAME_START");
+    send_line(r->player1->fd, "G_ST");
+    send_line(r->player2->fd, "G_ST");
     r->player1->state = ST_PLAYING;
     r->player2->state = ST_PLAYING;
 
@@ -25,8 +25,8 @@ void start_next_round(room_t *r) {
     r->round_start_time = time(NULL);
     r->awaiting_moves = 1;
 
-    send_line(r->player1->fd, "ROUND_START %d", r->round_number);
-    send_line(r->player2->fd, "ROUND_START %d", r->round_number);
+    send_line(r->player1->fd, "R_ST %d", r->round_number);
+    send_line(r->player2->fd, "R_ST %d", r->round_number);
 }
 
 void process_round_result(room_t *r) {
@@ -44,9 +44,9 @@ void process_round_result(room_t *r) {
                    winner_str = r->player2->nick;
                }
 
-    send_line(r->player1->fd, "ROUND_RESULT %s %c %c %d %d",
+    send_line(r->player1->fd, "R_RE %s %c %c %d %d",
               winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
-    send_line(r->player2->fd, "ROUND_RESULT %s %c %c %d %d",
+    send_line(r->player2->fd, "R_RE %s %c %c %d %d",
               winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
 
     printf("Player1 <%s>: %d\n", r->player1->nick, r->score_p1);
@@ -63,8 +63,8 @@ void process_round_result(room_t *r) {
 void end_game(room_t *r) {
     char *winner = r->score_p1 >= 5 ? r->player1->nick : r->player2->nick;
 
-    send_line(r->player1->fd, "GAME_END %s", winner);
-    send_line(r->player2->fd, "GAME_END %s", winner);
+    send_line(r->player1->fd, "G_END %s", winner);
+    send_line(r->player2->fd, "G_END %s", winner);
 
     // Reset player state after the match
     r->player1->state = ST_AUTH;
@@ -103,9 +103,9 @@ void handle_round_timeout(room_t *r) {
     const char m1 = r->move_p1 == '\0' ? 'X' : r->move_p1;
     const char m2 = r->move_p2 == '\0' ? 'X' : r->move_p2;
 
-    send_line(r->player1->fd, "ROUND_RESULT TIMEOUT %c %c %d %d",
+    send_line(r->player1->fd, "R_RE T %c %c %d %d",
               m1, m2, r->score_p1, r->score_p2);
-    send_line(r->player2->fd, "ROUND_RESULT TIMEOUT %c %c %d %d",
+    send_line(r->player2->fd, "R_RE T %c %c %d %d",
               m2, m1, r->score_p2, r->score_p1);
 
     if (r->score_p1 >= 5 || r->score_p2 >= 5) {

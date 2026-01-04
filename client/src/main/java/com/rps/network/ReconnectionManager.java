@@ -199,7 +199,7 @@ public final class ReconnectionManager {
     }
 
     private void registerEventHandlers() {
-        eventBus.subscribe("RECONNECT_OK", this::handleReconnectOk);
+        eventBus.subscribe("REC_OK", this::handleReconnectOk);
         eventBus.subscribe("ERR", this::handleError);
     }
 
@@ -238,17 +238,17 @@ public final class ReconnectionManager {
      */
     private String parseServerState(ServerEvent event) {
         String statePart = event.getPart(1);
-        if ("GAME".equals(statePart) && event.getPartsCount() >= 5) {
-            return "GAME " + event.getPart(2) + " " + event.getPart(3) + " " + event.getPart(4);
+        if ("G".equals(statePart) && event.getPartsCount() >= 5) {
+            return "G " + event.getPart(2) + " " + event.getPart(3) + " " + event.getPart(4);
         }
-        if ("LOBBY".equals(statePart)) {
+        if ("L".equals(statePart)) {
             if (event.getPartsCount() >= 4) {
-                return "LOBBY " + event.getPart(2) + " " + event.getPart(3);
+                return "L " + event.getPart(2) + " " + event.getPart(3);
             }
             if (event.getPartsCount() >= 3) {
-                return "LOBBY " + event.getPart(2);
+                return "L " + event.getPart(2);
             }
-            return "LOBBY NONE";
+            return "L NONE";
         }
         return statePart != null ? statePart : "UNKNOWN";
     }

@@ -171,10 +171,10 @@ public class MainApp extends Application {
         eventBus.subscribe("WELCOME", connectionUi::handleWelcome);
 
         // Server finished sending a rooms list.
-        eventBus.subscribe("ROOMS_LOADED", roomsUi::handleRoomsLoaded);
+        eventBus.subscribe("R_LOADED", roomsUi::handleRoomsLoaded);
 
         // Client joined a room and should see lobby scene.
-        eventBus.subscribe("ROOM_JOINED", roomsUi::handleRoomJoined);
+        eventBus.subscribe("R_JOINED", roomsUi::handleRoomJoined);
 
         // Error message from server.
         eventBus.subscribe("ERR", event -> {
@@ -190,27 +190,27 @@ public class MainApp extends Application {
         eventBus.subscribe("OK", this::handleConfirmation);
 
         // Lobby-related events.
-        eventBus.subscribe("OPPONENT_INFO", lobbyUi::handleOpponentInfo);
-        eventBus.subscribe("PLAYER_JOINED", lobbyUi::handlePlayerJoined);
-        eventBus.subscribe("PLAYER_READY", lobbyUi::handlePlayerReady);
-        eventBus.subscribe("PLAYER_UNREADY", lobbyUi::handlePlayerUnready);
-        eventBus.subscribe("PLAYER_LEFT", lobbyUi::handlePlayerLeft);
+        eventBus.subscribe("OPP_INF", lobbyUi::handleOpponentInfo);
+        eventBus.subscribe("P_JOINED", lobbyUi::handlePlayerJoined);
+        eventBus.subscribe("P_READY", lobbyUi::handlePlayerReady);
+        eventBus.subscribe("P_UNREADY", lobbyUi::handlePlayerUnready);
+        eventBus.subscribe("P_LEFT", lobbyUi::handlePlayerLeft);
 
         // Game start / game scene.
-        eventBus.subscribe("GAME_START", gameUi::showGameScene);
+        eventBus.subscribe("G_ST", gameUi::showGameScene);
 
         // Game round events.
-        eventBus.subscribe("ROUND_START", gameUi::handleRoundStart);
-        eventBus.subscribe("ROUND_RESULT", gameUi::handleRoundResult);
-        eventBus.subscribe("GAME_END", gameUi::handleGameEnd);
+        eventBus.subscribe("R_ST", gameUi::handleRoundStart);
+        eventBus.subscribe("R_RES", gameUi::handleRoundResult);
+        eventBus.subscribe("G_END", gameUi::handleGameEnd);
 
         // Game pause / resume events.
-        eventBus.subscribe("GAME_PAUSED", gameUi::handleGamePaused);
+        eventBus.subscribe("G_PAUSE", gameUi::handleGamePaused);
 
-        eventBus.subscribe("GAME_RESUMED", gameUi::handleGameResumed);
+        eventBus.subscribe("G_RES", gameUi::handleGameResumed);
 
         // Move accepted by server.
-        eventBus.subscribe("MOVE_ACCEPTED", event ->
+        eventBus.subscribe("M_ACC", event ->
                 Platform.runLater(() -> {
                     gameUi.disableMoveButtons();
                     gameUi.setGameStatusText("Waiting for opponent...");
@@ -242,7 +242,7 @@ public class MainApp extends Application {
      * @param state textual description of server-side state after reconnection.
      */
     private void handleReconnectState(String state) {
-        if (state.startsWith("GAME")) {
+        if (state.startsWith("G")) {
             String[] parts = state.split(" ");
             if (parts.length >= 4) {
                 int score1 = Integer.parseInt(parts[1]);
@@ -265,7 +265,7 @@ public class MainApp extends Application {
             } else {
                 eventBus.recordInvalidEvent();
             }
-        } else if (state.startsWith("LOBBY")) {
+        } else if (state.startsWith("L")) {
             String[] parts = state.split(" ");
             if (playerProfile != null) {
                 playerProfile.setStatus(PlayerProfile.PlayerStatus.IN_LOBBY);
@@ -297,6 +297,10 @@ public class MainApp extends Application {
         }
         if (nickname.split(" ").length > 1) {
             showAlert("Error", "Name cannot contain spaces!");
+            return;
+        }
+        if (nickname.length() < 3) {
+            showAlert("Error", "Name too short! Min 3 characters.");
             return;
         }
         if (nickname.length() > 32) {

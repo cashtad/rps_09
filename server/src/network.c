@@ -46,7 +46,7 @@ int send_room_list(int fd) {
     for (int i = 0; i < MAX_ROOMS; i++)
         if (rooms[i].id != 0) count++;
 
-    send_line(fd, "ROOM_LIST %d", count);
+    send_line(fd, "R_LIST %d", count);
     for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == 0) continue;
         send_line(fd, "ROOM %d %s %d/2 %s",

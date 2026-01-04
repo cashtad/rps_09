@@ -37,9 +37,9 @@ public final class ProtocolHandler {
     }
 
     private void registerInternalHandlers() {
-        eventBus.subscribe("ROOM_LIST", roomListAssembler::handleHeader); // TODO ???
+        eventBus.subscribe("R_LIST", roomListAssembler::handleHeader); // TODO ???
         eventBus.subscribe("ROOM", roomListAssembler::handleRoom);
-        eventBus.subscribe("ROOM_CREATED", event -> requestRooms()); // TODO ???
+        eventBus.subscribe("R_CREATED", event -> requestRooms()); // TODO ???
         eventBus.subscribe("PING", event -> respondPing());
     }
 
@@ -50,6 +50,7 @@ public final class ProtocolHandler {
         if (!"PING".equals(rawMessage)) {
             LOG.info("SERVER: " + rawMessage);
         }
+        LOG.info("SERVER: " + rawMessage);
         List<String> tokens = MessageTokenizer.tokenize(rawMessage);
         if (tokens.isEmpty()) {
             return;
@@ -120,7 +121,7 @@ public final class ProtocolHandler {
      * Requests opponent info in current lobby (GET_OPPONENT).
      */
     public void requestOpponentInfo() {
-        networkManager.send("GET_OPPONENT");
+        networkManager.send("GET_OPP");
     }
 
     /**
@@ -173,12 +174,12 @@ public final class ProtocolHandler {
         private void publishRooms(List<String> snapshot) {
             String roomsData = String.join("|", snapshot);
             List<String> payload = new ArrayList<>();
-            payload.add("ROOMS_LOADED");
+            payload.add("R_LOADED");
             if (!roomsData.isEmpty()) {
                 payload.add(roomsData);
             }
-            String fullMessage = payload.size() > 1 ? "ROOMS_LOADED " + roomsData : "ROOMS_LOADED";
-            eventBus.publish(new ServerEvent("ROOMS_LOADED", payload, fullMessage));
+            String fullMessage = payload.size() > 1 ? "R_LOADED " + roomsData : "ROOMS_LOADED";
+            eventBus.publish(new ServerEvent("R_LOADED", payload, fullMessage));
         }
 
         private int parseCount(String raw) {

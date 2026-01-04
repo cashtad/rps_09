@@ -109,7 +109,7 @@ void handle_create(client_t *c, char *args) {
         return;
     }
     char buf[LINE_BUF];
-    snprintf(buf, LINE_BUF, "ROOM_CREATED %d", rid);
+    snprintf(buf, LINE_BUF, "R_CREATED %d", rid);
     send_broadcast_about_new_room(buf);
 }
 
@@ -155,11 +155,11 @@ void handle_join(client_t *c, char *args) {
     mark_valid_message(c);
 
     add_player_to_room(c, r);
-    send_line(c->fd, "ROOM_JOINED %d", r->id);
+    send_line(c->fd, "R_JOINED %d", r->id);
 
     if (r->player_count == 2) {
         client_t *other = (r->player1 == c) ? r->player2 : r->player1;
-        send_line(other->fd, "PLAYER_JOINED %s", c->nick);
+        send_line(other->fd, "P_JOINED %s", c->nick);
     }
 }
 
@@ -186,7 +186,7 @@ void handle_ready(client_t *c) {
 
     client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
 
-    send_line(opponent->fd, "PLAYER_READY %s", c->nick);
+    send_line(opponent->fd, "P_READY %s", c->nick);
 
     if (opponent->state == ST_READY) {
         // Start the match once both participants are ready
@@ -274,7 +274,7 @@ void handle_move(client_t *c, char *args) {
         r->move_p2 = move[0];
     }
 
-    send_line(c->fd, "MOVE_ACCEPTED");
+    send_line(c->fd, "M_ACC");
 
     // Run the round resolution once both moves are present
     if (r->move_p1 != '\0' && r->move_p2 != '\0') {
@@ -305,13 +305,13 @@ void handle_get_opponent(client_t *c) {
 
 
     if (r->player_count == 1) {
-        send_line(c->fd, "OPPONENT_INFO NONE");
+        send_line(c->fd, "OPP_INF NONE");
         return;
     }
 
     client_t *opponent = (r->player1 == c) ? r->player2 : r->player1;
     const char *status = (opponent->state == ST_READY) ? "READY" : "NOT_READY";
-    send_line(c->fd, "OPPONENT_INFO %s %s", opponent->nick, status);
+    send_line(c->fd, "OPP_INF %s %s", opponent->nick, status);
 }
 
 void handle_reconnect(client_t *c, char* args) {
@@ -358,7 +358,7 @@ void handle_reconnect(client_t *c, char* args) {
 
     switch (c->state) {
         case ST_AUTH:
-            send_line(c->fd, "RECONNECT_OK CONNECTED");
+            send_line(c->fd, "REC_OK C");
             handle_list(c);
             break;
         case ST_IN_LOBBY:
@@ -376,7 +376,7 @@ void handle_reconnect(client_t *c, char* args) {
                 printf("Replaced player2 fd%d by fd%d\n", old_client->fd, c->fd);
             }
 
-            send_line(c->fd, "RECONNECT_OK LOBBY");
+            send_line(c->fd, "REC_OK L");
 
             break;
         case ST_PLAYING:
@@ -402,18 +402,18 @@ void handle_reconnect(client_t *c, char* args) {
             if (performed_move != '\0') {
                 performed_move = 'X';
             }
-            send_line(c->fd, "RECONNECT_OK GAME %d %d %d %d %c",
+            send_line(c->fd, "REC_OK G %d %d %d %d %c",
                      r->score_p1, r->score_p2, r->round_number, performed_move);
 
             if (opponent) {
                 performed_move = (r->player1 == c) ? r->move_p2 : r->move_p1;
-                send_line(opponent->fd, "GAME_RESUMED %d %d %d %c",
+                send_line(opponent->fd, "G_RES %d %d %d %c",
                          r->round_number, r->score_p1, r->score_p2, performed_move);
             }
 
             break;
         default:
-            send_line(c->fd, "RECONNECT_OK CONNECTED");
+            send_line(c->fd, "REC_OK CONNECTED");
             break;
     }
 
@@ -465,7 +465,7 @@ void handle_line(client_t *c, char *line) {
         pthread_mutex_lock(&global_lock);
         handle_move(c, args);
         pthread_mutex_unlock(&global_lock);
-    } else if (strcmp(cmd, "GET_OPPONENT") == 0) {
+    } else if (strcmp(cmd, "GET_OPP") == 0) {
         pthread_mutex_lock(&global_lock);
         handle_get_opponent(c);
         pthread_mutex_unlock(&global_lock);

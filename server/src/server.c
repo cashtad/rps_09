@@ -183,7 +183,7 @@ void process_client_hard_disconnection(client_t *c) {
             if (room) {
                 client_t *opponent = get_opponent_in_room(room, c);
                 if (opponent) {
-                    send_line(opponent->fd, "GAME_END opponent_left");
+                    send_line(opponent->fd, "G_END opp_l");
                     opponent->state = ST_AUTH;
                     opponent->room_id = -1;
                 }
@@ -253,7 +253,7 @@ void process_client_timeout(client_t *c) {
             c->state = ST_IN_LOBBY;
             client_t *opponent = get_opponent_in_room(r, c);
             if (opponent) {
-                send_line(opponent->fd, "OPPONENT_INFO %s NOT_READY", c->nick);
+                send_line(opponent->fd, "OPP_INF %s N_R", c->nick);
             }
             break;
         case ST_PLAYING:
@@ -264,7 +264,7 @@ void process_client_timeout(client_t *c) {
 
             client_t *opp = (room->player1 == c) ? room->player2 : room->player1;
             if (opp) {
-                send_line(opp->fd, "GAME_PAUSED");
+                send_line(opp->fd, "G_PAUSE");
             }
             fprintf(stderr, "Game paused in room %d\n", room->id);
             break;

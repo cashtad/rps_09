@@ -118,7 +118,7 @@ int remove_player_from_room(client_t *c, room_t *r) {
         }
         c->state = ST_AUTH;
         c->room_id = -1;
-        send_line(r->player1->fd, "PLAYER_LEFT %s", c->nick);
+        send_line(r->player1->fd, "P_LEFT %s", c->nick);
     } else {
         c->state = ST_AUTH;
         c->room_id = -1;
