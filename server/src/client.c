@@ -53,6 +53,7 @@ client_t* find_client_by_token(const char* token) {
         if (clients[i] != NULL) {
             if (clients[i]->token[0] != '\0') {
                 if (strcmp(clients[i]->token, token) == 0) {
+                    printf("Found client with token %s = %s\n", token, clients[i]->token);
                     return clients[i];
                 } else {
                     printf("%s != %s\n", token, clients[i]->token);
