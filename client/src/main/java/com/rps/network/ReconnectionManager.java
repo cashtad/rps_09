@@ -52,7 +52,7 @@ public final class ReconnectionManager {
                                ProtocolHandler protocolHandler,
                                EventBus eventBus) {
         this(networkManager, protocolHandler, eventBus, Runnable::run,
-                Duration.ofSeconds(10), Duration.ofSeconds(45));
+                Duration.ofSeconds(2), Duration.ofSeconds(45));
     }
 
     /**

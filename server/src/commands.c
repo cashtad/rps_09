@@ -418,8 +418,9 @@ void handle_reconnect(client_t *c, char* args) {
             send_line(c->fd, "REC_OK CONNECTED");
             break;
     }
+    printf("Client %s reconnected, deleting old client\n", c->nick);
     unregister_client_without_lock(old_client);
-    free(old_client);  // Старый поток уже завершился без free()
+    free(old_client);
 }
 
 void handle_line(client_t *c, char *line) {

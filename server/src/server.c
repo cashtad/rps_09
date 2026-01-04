@@ -146,7 +146,6 @@ void *client_worker(void *arg) {
 
     while (fgets(buf, sizeof(buf), f) != NULL) {
         if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
-            printf("Client %s fd:%d exceeded invalid message limit, disconnecting\n", c->nick, c->fd);
             break;
         }
         handle_line(c, buf);
@@ -155,11 +154,11 @@ void *client_worker(void *arg) {
     pthread_mutex_lock(&global_lock);
 
     if (c->timeout_state == SOFT_TIMEOUT) {
-        fprintf(stderr, "Client %s fd:%d disconnected, waiting for reconnect\n", c->nick, c->fd);
+        printf("Client %s fd:%d disconnected, waiting for reconnect\n", c->nick, c->fd);
         pthread_mutex_unlock(&global_lock);
         return NULL;
     }
-    fprintf(stderr, "Client %s fd:%d fully disconnected, deleting him from everywhere\n", c->nick, c->fd);
+    printf("Client %s fd:%d fully disconnected, deleting him from everywhere\n", c->nick, c->fd);
     process_client_hard_disconnection(c);
     unregister_client_without_lock(c);
     pthread_mutex_unlock(&global_lock);
