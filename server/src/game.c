@@ -33,7 +33,7 @@ void process_round_result(room_t *r) {
     char *winner_str;
 
     if (r->move_p1 == r->move_p2) {
-        winner_str = "DRAW";
+        winner_str = "D";
     } else if ((r->move_p1 == 'R' && r->move_p2 == 'S') ||
                (r->move_p1 == 'P' && r->move_p2 == 'R') ||
                (r->move_p1 == 'S' && r->move_p2 == 'P')) {
@@ -43,11 +43,18 @@ void process_round_result(room_t *r) {
                    r->score_p2++;
                    winner_str = r->player2->nick;
                }
-
-    send_line(r->player1->fd, "R_RE %s %c %c %d %d",
-              winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
-    send_line(r->player2->fd, "R_RE %s %c %c %d %d",
-              winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
+    if (strcmp(winner_str, "D") == 0) {
+        send_line(r->player1->fd, "R_RE %c %c %c %d %d", winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
+        send_line(r->player2->fd, "R_RE %c %c %c %d %d", winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
+    } else {
+        if (strcmp(winner_str, r->player1->nick) == 0) {
+            send_line(r->player1->fd, "R_RE %d %c %c %d %d", 1, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
+            send_line(r->player2->fd, "R_RE %d %c %c %d %d", 0, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
+        } else {
+            send_line(r->player1->fd, "R_RE %d %c %c %d %d", 0, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
+            send_line(r->player2->fd, "R_RE %d %c %c %d %d", 1, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
+        }
+    }
 
     printf("Player1 <%s>: %d\n", r->player1->nick, r->score_p1);
     printf("Player2 <%s>: %d\n", r->player2->nick, r->score_p2);

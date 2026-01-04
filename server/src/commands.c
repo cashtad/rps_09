@@ -12,6 +12,7 @@ void mark_invalid_message(client_t *c) {
     if (!c) return;
     c->invalid_msg_streak++;
     if (c->invalid_msg_streak >= MAX_INVALID_MSG_STREAK) {
+        printf("Client %s fd:%d exceeded invalid message limit, disconnecting\n", c->nick, c->fd);
         shutdown(c->fd, SHUT_RDWR);
     }
 }

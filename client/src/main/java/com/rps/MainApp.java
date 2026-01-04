@@ -1066,11 +1066,11 @@ public class MainApp extends Application {
                 String moveStr2 = getMoveString(moveOpponents);
 
                 String resultText;
-                if ("DRAW".equals(winner)) {
+                if ("D".equals(winner)) {
                     resultText = "Draw! You: " + moveStr1 + " vs " + moveStr2;
                 } else if ("T".equals(winner)) {
                     resultText = "Timeout! You: " + moveStr1 + " vs " + moveStr2;
-                } else if (playerProfile != null && winner.equals(playerProfile.getName())) {
+                } else if (winner.equals("1")) {
                     resultText = "You win! You: " + moveStr1 + " vs " + moveStr2;
                 } else {
                     resultText = "You lose! You: " + moveStr1 + " vs " + moveStr2;
