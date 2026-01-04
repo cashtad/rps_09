@@ -215,10 +215,11 @@ public final class ReconnectionManager {
     }
 
     private void handleError(ServerEvent event) {
-        String errorMsg = event.getPart(2);
-        if (!"INVALID_TOKEN".equals(errorMsg)) {
+        String errorMsg = event.getPart(1);
+        if (!"110".equals(errorMsg)) {
             return;
         }
+        LOG.info("Reconnection token rejected by server");
         State previous = state.getAndSet(State.IDLE);
         cancelAutoTask();
         if (previous == State.AUTO) {
