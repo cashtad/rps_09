@@ -431,10 +431,10 @@ void handle_line(client_t *c, char *line) {
 
     char *args = strtok(NULL, "");
 
-    if (strcmp(line, "PONG") != 0) {
-        printf("Received from client %s: %s\n", c->nick, line);
-    }
-
+    // if (strcmp(line, "PONG") != 0) {
+    //     printf("Received from client %s: %s\n", c->nick, line);
+    // }
+    printf("Received from client %s: %s\n", c->nick, line);
     pthread_mutex_lock(&global_lock);
     c->last_seen = time(NULL);
     pthread_mutex_unlock(&global_lock);
