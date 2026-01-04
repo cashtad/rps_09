@@ -111,7 +111,8 @@ void handle_create(client_t *c, char *args) {
     }
     char buf[LINE_BUF];
     snprintf(buf, LINE_BUF, "R_CREATED %d", rid);
-    send_broadcast_about_new_room(buf);
+    send_line(c->fd, buf);
+    // send_broadcast_about_new_room(buf);
 }
 
 void handle_join(client_t *c, char *args) {

@@ -44,8 +44,8 @@ void process_round_result(room_t *r) {
                    winner_str = r->player2->nick;
                }
     if (strcmp(winner_str, "D") == 0) {
-        send_line(r->player1->fd, "R_RE %c %c %c %d %d", winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
-        send_line(r->player2->fd, "R_RE %c %c %c %d %d", winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
+        send_line(r->player1->fd, "R_RE %s %c %c %d %d", winner_str, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
+        send_line(r->player2->fd, "R_RE %s %c %c %d %d", winner_str, r->move_p2, r->move_p1, r->score_p2, r->score_p1);
     } else {
         if (strcmp(winner_str, r->player1->nick) == 0) {
             send_line(r->player1->fd, "R_RE %d %c %c %d %d", 1, r->move_p1, r->move_p2, r->score_p1, r->score_p2);
