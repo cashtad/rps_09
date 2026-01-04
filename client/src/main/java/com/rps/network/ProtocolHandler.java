@@ -48,7 +48,7 @@ public final class ProtocolHandler {
             return;
         }
         if (!"PING".equals(rawMessage)) {
-            LOG.info(() -> "SERVER: " + rawMessage);
+            LOG.info("SERVER: " + rawMessage);
         }
         List<String> tokens = MessageTokenizer.tokenize(rawMessage);
         if (tokens.isEmpty()) {
