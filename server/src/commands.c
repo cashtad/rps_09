@@ -335,7 +335,7 @@ void handle_reconnect(client_t *c, char* args) {
 
     client_t *old_client = find_client_by_token(token);
     if (!old_client) {
-        send_line(c->fd, "ERR 110");
+        send_line(c->fd, "ERR 110 cannot_reconnect_now");
         mark_invalid_message(c);
         shutdown(c->fd, SHUT_RDWR);
         return;
