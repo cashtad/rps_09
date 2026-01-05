@@ -341,6 +341,13 @@ void handle_reconnect(client_t *c, char* args) {
         return;
     }
 
+    if (old_client->timeout_state != SOFT_TIMEOUT) {
+        send_line(c->fd, "ERR 111 cannot_reconnect_now");
+        mark_invalid_message(c);
+        shutdown(c->fd, SHUT_RDWR);
+        return;
+    }
+
     mark_valid_message(c);
 
     // Copy the previous client's session data
