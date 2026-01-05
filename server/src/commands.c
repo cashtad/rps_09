@@ -342,7 +342,7 @@ void handle_reconnect(client_t *c, char* args) {
     }
 
     if (old_client->timeout_state != SOFT_TIMEOUT) {
-        send_line(c->fd, "ERR 111 cannot_reconnect_now");
+        send_line(c->fd, "ERR 110 cannot_reconnect_now");
         mark_invalid_message(c);
         shutdown(c->fd, SHUT_RDWR);
         return;
