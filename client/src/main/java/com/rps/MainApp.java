@@ -1097,6 +1097,10 @@ public class MainApp extends Application {
                     disableMoveButtons();
                     setGameStatusText("Game ended - opponent left the game.");
                     showAlert("Game Ended", "Opponent has left the game. You win by default!");
+                } else if ("D".equals(winner)) {
+                    disableMoveButtons();
+                    setGameStatusText("Game ended - exceeded maximum amount of rounds.");
+                    showAlert("Game Ended", "exceeded maximum amount of rounds. The game is a draw!");
                 } else {
                     setGameStatusText("Game ended!");
                     String message = (playerProfile != null && winner.equals(playerProfile.getName()))

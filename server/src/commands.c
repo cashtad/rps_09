@@ -362,7 +362,7 @@ void handle_reconnect(client_t *c, char* args) {
     c->timeout_state = CONNECTED;
     c->last_seen = time(NULL);
     c->invalid_msg_streak = old_client->invalid_msg_streak;
-    old_client->is_replaced = 1;
+    old_client->is_replaced = true;
 
     room_t *r;
 

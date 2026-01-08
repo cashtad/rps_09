@@ -2,6 +2,7 @@
 #define RPS_09_SERVER_H
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,11 +23,11 @@
 /**
  * @brief Upper bound on concurrently connected clients.
  */
-#define MAX_CLIENTS 128
+#define MAX_CLIENTS 64
 /**
  * @brief Maximum number of rooms managed simultaneously.
  */
-#define MAX_ROOMS 64
+#define MAX_ROOMS 32
 /**
  * @brief Maximum number of characters allowed in a nickname.
  */
@@ -101,7 +102,7 @@ typedef struct {
     time_t last_seen;        // Timestamp of the last inbound message
     time_t last_ping_sent;   // Timestamp when the latest PING was emitted
     client_timeout_t timeout_state; // Current timeout milestone for the client
-    int is_replaced;
+    bool is_replaced;
     int invalid_msg_streak;
     pthread_t thread;
 } client_t;
@@ -122,7 +123,7 @@ typedef struct {
     char move_p1;               // Last move by player 1 ('R','P','S','\0')
     char move_p2;               // Last move by player 2 ('R','P','S','\0')
     time_t round_start_time;    // Timestamp when the round began
-    int awaiting_moves;         // Non-zero if new moves are still expected
+    bool awaiting_moves;         // Non-zero if new moves are still expected
 } room_t;
 
 /**

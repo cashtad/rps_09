@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
         c->room_id = -1;
         c->last_seen = time(NULL);
         c->timeout_state = CONNECTED;
-        c->is_replaced = 0;
+        c->is_replaced = false;
         c->last_ping_sent = time(NULL);
         c->invalid_msg_streak = 0;
         gen_token(c->token);

@@ -57,7 +57,7 @@ void process_round_result(room_t *r) {
     }
 
     // Check whether someone has already won
-    if (r->score_p1 >= 5 || r->score_p2 >= 5) {
+    if (r->score_p1 >= 5 || r->score_p2 >= 5 || r->round_number > 30) {
         end_game(r);
     } else {
         start_next_round(r);
@@ -65,8 +65,12 @@ void process_round_result(room_t *r) {
 }
 
 void end_game(room_t *r) {
-    char *winner = r->score_p1 >= 5 ? r->player1->nick : r->player2->nick;
-
+    char *winner;
+    if (r->round_number > 30) {
+        winner = "D";
+    } else {
+        winner = r->score_p1 >= 5 ? r->player1->nick : r->player2->nick;
+    }
     send_line(r->player1->fd, "G_END %s", winner);
     send_line(r->player2->fd, "G_END %s", winner);
 
