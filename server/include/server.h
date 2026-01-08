@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
-
+#include <unistd.h>
 
 
 /**
@@ -131,6 +131,12 @@ typedef struct {
  * @return void
  */
 void check_clients(void);
+/**
+ * @brief Checks every room for round expirations and clears completed sessions.
+ * @details Input: none. Output: room states are updated in place.
+ * @return void
+ */
+void check_rooms(void);
 /**
  * @brief Thread routine used to monitor room and client timeouts.
  * @param arg Input pointer (unused, expected NULL). Output is unused as well.

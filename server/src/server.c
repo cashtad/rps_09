@@ -2,13 +2,12 @@
 
 
 #include "../include/server.h"
-
-
-
 #include "../include/client.h"
 #include "../include/room.h"
 #include "../include/send_line.h"
 #include "../include/commands.h"
+
+
 
 /** Protects shared server-wide state accessed across threads. */
 pthread_mutex_t global_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -177,7 +176,7 @@ void check_clients(void) {
 
         // 1) If no data has been received recently, mark the client as stalled
         if (now - c->last_seen >= CLIENT_TIMEOUT_SOFT && c->timeout_state == CONNECTED) {
-            fprintf(stderr, "check_clients: Client soft timeout: %s\n", c->nick);
+            fprintf(stderr, "Client soft timeout: %s\n", c->nick);
             c->timeout_state = SOFT_TIMEOUT;
             process_client_timeout(c);
             shutdown(c->fd, SHUT_RDWR);
@@ -198,6 +197,20 @@ void check_clients(void) {
         if (now - c->last_ping_sent >= PING_INTERVAL && c->timeout_state == CONNECTED) {
             send_line(c->fd, "PING");
             c->last_ping_sent = now;
+        }
+    }
+}
+
+void check_rooms(void) {
+    time_t now = time(NULL);
+
+    for (int i = 0; i < MAX_ROOMS; i++) {
+        room_t *r = &rooms[i];
+
+        if (r->state == RM_PLAYING && r->awaiting_moves) {
+            if (now - r->round_start_time >= ROUND_TIMEOUT) {
+                handle_round_timeout(r);
+            }
         }
     }
 }

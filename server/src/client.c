@@ -45,21 +45,17 @@ client_t* find_client_by_fd(const int fd) {
     return NULL;
 }
 client_t* find_client_by_token(const char* token) {
-    if (!token) {printf("No token was provided\n"); return NULL;}
+    if (!token) return NULL;
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i] != NULL) {
             if (clients[i]->token[0] != '\0') {
                 if (strcmp(clients[i]->token, token) == 0) {
-                    printf("Found client with token %s = %s\n", token, clients[i]->token);
                     return clients[i];
-                } else {
-                    printf("%s != %s\n", token, clients[i]->token);
                 }
             }
         }
     }
-    printf("Didnt find any client with this token\n");
     return NULL;
 }
 
@@ -102,7 +98,6 @@ void process_client_timeout(client_t *c) {
         if (opp) {
             send_line(opp->fd, "G_PAUSE");
         }
-        fprintf(stderr, "Game paused in room %d\n", room->id);
         break;
     default:
         break;
@@ -110,10 +105,8 @@ void process_client_timeout(client_t *c) {
 }
 
 void process_client_hard_disconnection(client_t *c) {
-    printf("Processing hard disconnect for client %s fd%d\n", c->nick, c->fd);
     // If the client was replaced via RECONNECT, skip cleanup
     if (c->is_replaced) {
-        printf("Client %s was replaced, skipping cleanup\n", c->nick);
         return;
     }
     switch (c->state) {
@@ -121,7 +114,6 @@ void process_client_hard_disconnection(client_t *c) {
     case ST_READY:
         room_t *r = find_room_by_id(c->room_id);
         if (r) {
-            printf("Removing player %s fd%d from room %s\n", c->nick, c->fd,r->name);
             remove_player_from_room(c, r);
         }
         break;
@@ -135,7 +127,6 @@ void process_client_hard_disconnection(client_t *c) {
                 opponent->state = ST_AUTH;
                 opponent->room_id = -1;
             }
-            printf("Room %s ended due to client %s fd%d disconnect\n", room->name, c->nick, c->fd);
             remove_room(room);
         }
         break;

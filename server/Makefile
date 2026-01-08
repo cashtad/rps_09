@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -pthread -Iinclude -O2
-SRCS = src/client.c src/commands.c src/game.c src/network.c src/room.c src/server.c
+SRCS = src/client.c src/commands.c src/game.c src/send_line.c src/room.c src/server.c
 OBJS = $(SRCS:.c=.o)
 TARGET = server
 

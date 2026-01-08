@@ -287,13 +287,8 @@ void handle_move(client_t *c, char *args) {
 
     // Run the round resolution once both moves are present
     if (r->move_p1 != '\0' && r->move_p2 != '\0') {
-        fprintf(stderr, "Both moves received, processing round\n");
         r->awaiting_moves = 0;
         process_round_result(r);
-    } else {
-        fprintf(stderr, "Waiting for opponent move: p1=%c p2=%c\n",
-               r->move_p1 ? r->move_p1 : '-',
-               r->move_p2 ? r->move_p2 : '-');
     }
 }
 
@@ -386,10 +381,8 @@ void handle_reconnect(client_t *c, char* args) {
             // Replace the old client pointer with the reconnected instance
             if (r->player1 == old_client) {
                 r->player1 = c;
-                printf("Replaced player1 fd%d by fd%d\n", old_client->fd, c->fd);
             } else if (r->player2 == old_client){
                 r->player2 = c;
-                printf("Replaced player2 fd%d by fd%d\n", old_client->fd, c->fd);
             }
 
             send_line(c->fd, "REC_OK L");
@@ -447,10 +440,6 @@ void handle_line(client_t *c, char *line) {
 
     char *args = strtok(NULL, "");
 
-    // if (strcmp(line, "PONG") != 0) {
-    //     printf("Received from client %s: %s\n", c->nick, line);
-    // }
-    printf("Received from client %s: %s\n", c->nick, line);
     pthread_mutex_lock(&global_lock);
     c->last_seen = time(NULL);
     pthread_mutex_unlock(&global_lock);

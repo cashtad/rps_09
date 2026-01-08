@@ -10,20 +10,6 @@ void init_rooms(void) {
         rooms[i].id = 0;
 }
 
-void check_rooms(void) {
-    time_t now = time(NULL);
-
-    for (int i = 0; i < MAX_ROOMS; i++) {
-        room_t *r = &rooms[i];
-
-        if (r->state == RM_PLAYING && r->awaiting_moves) {
-            if (now - r->round_start_time >= ROUND_TIMEOUT) {
-                handle_round_timeout(r);
-            }
-        }
-    }
-}
-
 int get_amount_of_players_in_room(const room_t *r) {
     return r->player_count;
 }

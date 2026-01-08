@@ -2,6 +2,7 @@
 #define RPS_09_GAME_H
 
 #include "server.h"
+#include "send_line.h"
 
 /**
  * @brief Starts a best-of series for the supplied room.
