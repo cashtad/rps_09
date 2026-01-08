@@ -8,39 +8,26 @@ All messages originate from either Client or Server and are plain ASCII/UTF-8.
 
 ## General rules
 
-* Each client must send `HELLO <nickname>` immediately after TCP connect.
-* Server responds with `WELCOME <token>` or `ERR <code> <message>`.
+* Server always responds to the client's message.
 * For each client request the server sends at least one response (ACK/ERR/etc.).
 * Heartbeat: `PING` / `PONG` — server may send `PING` periodically; client replies `PONG`.
 * If nothing happens, nothing is sent (except optional periodic PING).
 * Max nickname length: 32 chars; allowed chars: printable non-space.
-* Max room name length: 64 chars.
+* Max room name length: 32 chars.
 * Message terminator: CRLF (`\r\n`).
-
-## Message grammar (ABNF-like)
-
-```
-LINE = COMMAND *(SP ARG) CRLF
-COMMAND = uppercase-token
-ARG = token / quoted-string
-token = 1*<visible-printable-except-space>
-quoted-string = '"' *(any-except-\" or CRLF) '"'
-```
-
-For simplicity implementation may forbid quoted strings; then tokens only.
 
 ## Client -> Server commands
 
 * `HELLO <nickname>`
 
-    * initial identification. Server responds `WELCOME <token>`.
+    * initial identification. Server responds `WELCOME <token>`. Token should be stored locally to allow reconnection.
     * example: `HELLO Alice\r\n`
 
 * `LIST`
 
     * requests room list. Server responds:
 
-        * `ROOM_LIST <count>`
+        * `R_LIST <count>`
         * `ROOM <id> <name> <players>/<max> <state>` (repeated <count> times)
     * example:
 
@@ -48,27 +35,23 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
 * `CREATE <room_name>`
 
-    * create room (max players 2). Server: `ROOM_CREATED <room_id>` or `ERR`.
+    * create room (max players 2). Server: `R_CREATED <room_id>` or `ERR`.
 
 * `JOIN <room_id>`
 
-    * join room id. Server: `ROOM_JOINED <room_id>` and broadcast `PLAYER_JOINED <nickname>` to room.
+    * join room id. Server: `R_JOINED <room_id>` and broadcast `P_JOINED <nickname>` to room.
 
 * `LEAVE`
 
-    * leave current room and return to lobby. Server: `LEFT`.
+    * leave current room and return to the lobby. Server: `OK left_room <id_room>` and broadcast `P_LEFT <nickname>`.
 
-* `GET_OPPONENT`
+* `GET_OPP`
 
-    * ask for opponent nickname in current room. Server: `OPPONENT_INFO <nickname> <status>` or `ERR`.
+    * ask for the opponent's nickname in the current room. Server: `OPP_INF <nickname> <status>` if present or `OPP_INF NONE`.
 
 * `READY`
 
-    * mark ready in room. When both ready server sends `GAME_START`.
-    
-* `UNREADY`
-
-    * mark unready in room.
+    * mark ready in room. Server: `OK you_are_ready` and broadcast `P_READY <nickname>`. When both ready server sends `G_ST`.
 
 * `MOVE <R|P|S>`
 
@@ -78,13 +61,9 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
     * heartbeat. Server: `PONG`.
 
-* `RECONNECT <token>`
+* `REC <token>`
 
-    * attempt to reattach to old session.
-
-* `QUIT`
-
-    * intent to quit; connection may be closed.
+    * attempt to reattach to old session. Server: `REC_OK <state>`
 
 ## Server -> Client messages
 
@@ -100,42 +79,42 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 
     * general positive acknowledgement.
 
-* `ROOM_LIST <n>` and `ROOM ...` entries
+* `R_LIST <n>` and `ROOM ...` entries
 
-* `ROOM_CREATED <room_id>`
+* `R_CREATED <room_id>`
 
-* `ROOM_JOINED <room_id>` 
+* `R_JOINED <room_id>` 
 
-* `OPPONENT_INFO <nickname> <status>`
+* `OPP_INF <nickname> <status>`
 
-* `PLAYER_JOINED <nickname>`
+* `P_JOINED <nickname>`
 
-* `PLAYER_LEFT <nickname>`
+* `P_LEFT <nickname>`
 
-* `LEFT ROOM <room_id>`
+* `LEAVE <room_id>`
 
-* `GAME_START`
+* `G_ST`
 
-* `ROUND_START <round_number>`
+* `R_ST <round_number>`
 
-* `MOVE_ACCEPTED`
+* `M_ACC`
 
-* `ROUND_RESULT <winner|DRAW> <move_yours> <move_opponents> <score_yours> <score_opponents>`
+* `R_RE <0 if lost|1 if won|D if draw> <move_yours> <move_opponents> <score_yours> <score_opponents>`
 
     * examples:
 
-        * `ROUND_RESULT WINNER Alice R S 3 2`
-        * `ROUND_RESULT DRAW R R 2 2`
+        * `ROUND_RESULT 1 R S 3 2`
+        * `ROUND_RESULT D R R 2 2`
 
-* `GAME_END <winner>`
+* `G_END <winner>`
 
 * `PONG`
 
-* `RECONNECT_OK <room_id> <state>`
+* `REC_OK <state>`
 
-* `PLAYER_UNAVAILABLE <nickname> <short|long>`
+* `G_PAUSE`
 
-* `KICKED`
+* `G_RESUME <round_number> <score_yours> <score_opponents> <performed move>`
 
 ## Error codes
 
@@ -154,23 +133,27 @@ For simplicity implementation may forbid quoted strings; then tokens only.
 ### Client state (per session)
 
 ```
-CONNECTED
-  | HELLO
+ST_CONNECTED
+  | Sending: HELLO, REC
+  | Receiving: WELCOME, REC_OK
   v
-AUTHENTICATED (in lobby)
-  | CREATE/JOIN/LIST
+ST_AUTH (in lobby)
+  | Sending: R_CREATE, R_JOIN, LIST
+  | Receiving: ROOM, R_LIST, R_CREATED, R_JOINED
   v
-IN_ROOM (waiting)
-  | READY
+ST_IN_LOBBY (waiting)
+  | Sending: READY, LEAVE, GET_OPP
+  | Recieving: P_JOINED, P_READY, P_LEFT
   v
-READY
-  | both READY
+ST_READY
+  | Sending: LEAVE, GET_OPP
+  | Recieving: P_JOINED, P_READY, G_ST, P_LEFT
   v
-PLAYING
-  | disconnect (short) -> DISCONNECTED (PAUSED)
-  | disconnect (long)  -> REMOVED
+ST_PLAYING
+  | Sending: MOVE
+  | Receiving: R_RE, G_END, R_ST, G_PAUSE
   v
-FINISHED -> IN_LOBBY
+AUTHENTICATED
 ```
 
 ### Room state
@@ -179,7 +162,7 @@ FINISHED -> IN_LOBBY
 OPEN (0..1 players)
   | players join
   v
-WAITING (1..2 players)
+FULL (2 players)
   | both READY
   v
 PLAYING
@@ -194,37 +177,19 @@ FINISHED
 * bo9: first to reach 5 wins.
 * Round flow:
 
-    * Server sends `ROUND_START <n>`
+    * Server sends `R_ST <n>`
     * Each player sends `MOVE <R|P|S>`
-    * Server waits for both moves or `MOVE_TIMEOUT` (default 30s).
+    * Server waits for both moves or `MOVE_TIMEOUT` (default 10s).
     * If a player fails to send a move within the timeout, that player LOSES the round.
     * If both send move, standard RPS rules apply; if same — DRAW (no score change).
 
 ## Reconnection policy
 
-* `KEEPALIVE` interval: client may send `PING` every 10s.
-* If server receives no data for `KEEPALIVE`(60s): marks `PLAYER_UNAVAILABLE short` and pauses game.
-* `RECONNECT_WINDOW` default 120s — server keeps session state. Client attempts reconnect using `RECONNECT <token>`.
-* If reconnect within window: `RECONNECT_OK` and game resumes.
-* If not: server treats as long disconnect and may end game; opponent wins the match by default.
+* `KEEPALIVE` interval: client may send `PING` every 3s.
+* If server receives no data for `KEEPALIVE`(6s): marks `PLAYER_UNAVAILABLE short` and pauses game.
+* `RECONNECT_WINDOW` default 45s — server keeps session state. Client attempts reconnect using `RECONNECT <token>`.
+* If reconnect within window: `REC_OK` and game resumes.
+* If not: server treats as long disconnect and ends the game; opponent wins the match by default.
 
-## Examples
 
-* Client connects and registers:
-
-    * `HELLO Bob\r\n`
-    * `WELCOME afd9f3e2-...\r\n`
-
-* Create and join room:
-
-    * `CREATE duel\r\n` -> `ROOM_CREATED 5\r\n`
-    * `JOIN 5\r\n` -> `ROOM_JOINED 5\r\n`
-
-* Start round:
-
-    * server: `ROUND_START 1\r\n`
-    * client: `MOVE R\r\n` -> `MOVE_ACCEPTED\r\n`
-
----
-
-*This document is the canonical protocol specification for the project. It includes required fields and default timeouts. Keep it in the project root as `protocol.md`.*
+*This document is the canonical protocol specification for the project.*
