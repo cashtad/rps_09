@@ -1,7 +1,4 @@
 #include "../include/room.h"
-#include "../include/network.h"
-#include <string.h>
-#include <pthread.h>
 
 extern pthread_mutex_t global_lock;
 extern room_t rooms[MAX_ROOMS];
@@ -11,6 +8,20 @@ static int next_room_id = 1;
 void init_rooms(void) {
     for (int i = 0; i < MAX_ROOMS; i++)
         rooms[i].id = 0;
+}
+
+void check_rooms(void) {
+    time_t now = time(NULL);
+
+    for (int i = 0; i < MAX_ROOMS; i++) {
+        room_t *r = &rooms[i];
+
+        if (r->state == RM_PLAYING && r->awaiting_moves) {
+            if (now - r->round_start_time >= ROUND_TIMEOUT) {
+                handle_round_timeout(r);
+            }
+        }
+    }
 }
 
 int get_amount_of_players_in_room(const room_t *r) {

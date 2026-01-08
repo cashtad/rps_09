@@ -2,6 +2,9 @@
 #define RPS_09_CLIENT_H
 
 #include "server.h"
+#include <time.h>
+#include <stdint.h>
+#include "room.h"
 
 /**
  * @brief Registers a freshly connected client in the global registry.
@@ -45,6 +48,17 @@ client_t* find_client_by_token(const char* token);
  * @return void
  */
 void unregister_client_without_lock(const client_t *c);
-
+/**
+ * @brief Applies timeout-specific logic to a client inside a room or a game.
+ * @param c Input pointer to the stalled client.
+ * @return void
+ */
+void process_client_timeout(client_t *c);
+/**
+ * @brief Processes cleanup required after a hard client disconnection.
+ * @param c Input pointer to the disconnected client; its state is updated as output.
+ * @return void
+ */
+void process_client_hard_disconnection(client_t *c);
 
 #endif //RPS_09_CLIENT_H

@@ -2,7 +2,13 @@
 #define RPS_09_COMMANDS_H
 
 #include "server.h"
+#include "send_line.h"
+#include "room.h"
+#include "client.h"
+#include <string.h>
+#include <pthread.h>
 #include "game.h"
+#include <sys/socket.h>
 
 /**
  * @brief Parses and dispatches a complete protocol line from a client.

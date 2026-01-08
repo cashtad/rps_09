@@ -1,17 +1,14 @@
-//
-// Created by leonid on 10/26/25.
-//
-
 #ifndef RPS_09_SERVER_H
 #define RPS_09_SERVER_H
 
-#include <unistd.h>
 #include <pthread.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+
 
 
 /**
@@ -129,29 +126,11 @@ typedef struct {
 } room_t;
 
 /**
- * @brief Checks every room for round expirations and clears completed sessions.
- * @details Input: none. Output: room states are updated in place.
- * @return void
- */
-void check_rooms(void);
-/**
  * @brief Evaluates connected clients for ping/timeout handling.
  * @details Input: none. Output: client records are updated or dropped.
  * @return void
  */
 void check_clients(void);
-/**
- * @brief Processes cleanup required after a hard client disconnection.
- * @param c Input pointer to the disconnected client; its state is updated as output.
- * @return void
- */
-void process_client_hard_disconnection(client_t *c);
-/**
- * @brief Applies timeout-specific logic to a client inside a room.
- * @param c Input pointer to the stalled client; outputs include room state changes.
- * @return void
- */
-void process_client_timeout(client_t *c);
 /**
  * @brief Thread routine used to monitor room and client timeouts.
  * @param arg Input pointer (unused, expected NULL). Output is unused as well.

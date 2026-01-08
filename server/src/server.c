@@ -1,11 +1,13 @@
-// server/src/server.c
 #define GNU_SOURCE
 
-#include <arpa/inet.h>
+
 #include "../include/server.h"
+
+
+
 #include "../include/client.h"
 #include "../include/room.h"
-#include "../include/network.h"
+#include "../include/send_line.h"
 #include "../include/commands.h"
 
 /** Protects shared server-wide state accessed across threads. */
@@ -166,59 +168,6 @@ void *client_worker(void *arg) {
     return NULL;
 }
 
-void process_client_hard_disconnection(client_t *c) {
-    printf("Processing hard disconnect for client %s fd%d\n", c->nick, c->fd);
-    // If the client was replaced via RECONNECT, skip cleanup
-    if (c->is_replaced) {
-        printf("Client %s was replaced, skipping cleanup\n", c->nick);
-        return;
-    }
-    switch (c->state) {
-        case ST_IN_LOBBY:
-        case ST_READY:
-            room_t *r = find_room_by_id(c->room_id);
-            if (r) {
-                printf("Removing player %s fd%d from room %s\n", c->nick, c->fd,r->name);
-                remove_player_from_room(c, r);
-            }
-            break;
-
-        case ST_PLAYING:
-            room_t *room = find_room_by_id(c->room_id);
-            if (room) {
-                client_t *opponent = get_opponent_in_room(room, c);
-                if (opponent) {
-                    send_line(opponent->fd, "G_END opp_l");
-                    opponent->state = ST_AUTH;
-                    opponent->room_id = -1;
-                }
-                printf("Room %s ended due to client %s fd%d disconnect\n", room->name, c->nick, c->fd);
-                remove_room(room);
-            }
-            break;
-        default:
-            break;
-    }
-}
-
-
-
-// Fires exactly at TIMEOUT seconds since round start (no extra 1s delay)
-void check_rooms(void) {
-    time_t now = time(NULL);
-
-    for (int i = 0; i < MAX_ROOMS; i++) {
-        room_t *r = &rooms[i];
-
-        if (r->state == RM_PLAYING && r->awaiting_moves) {
-            if (now - r->round_start_time >= ROUND_TIMEOUT) {
-                handle_round_timeout(r);
-            }
-        }
-    }
-}
-
-
 void check_clients(void) {
     time_t now = time(NULL);
 
@@ -250,35 +199,5 @@ void check_clients(void) {
             send_line(c->fd, "PING");
             c->last_ping_sent = now;
         }
-    }
-}
-
-void process_client_timeout(client_t *c) {
-    if (c == NULL) return;
-    switch (c->state) {
-        case ST_IN_LOBBY:
-        case ST_READY:
-            room_t *r = find_room_by_id(c->room_id);
-            if (r == NULL) break;
-            c->state = ST_IN_LOBBY;
-            client_t *opponent = get_opponent_in_room(r, c);
-            if (opponent) {
-                send_line(opponent->fd, "OPP_INF %s N_R", c->nick);
-            }
-            break;
-        case ST_PLAYING:
-            room_t *room = find_room_by_id(c->room_id);
-
-            room->state = RM_PAUSED;
-            room->awaiting_moves = 0;
-
-            client_t *opp = (room->player1 == c) ? room->player2 : room->player1;
-            if (opp) {
-                send_line(opp->fd, "G_PAUSE");
-            }
-            fprintf(stderr, "Game paused in room %d\n", room->id);
-            break;
-        default:
-            break;
     }
 }

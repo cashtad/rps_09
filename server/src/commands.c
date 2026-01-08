@@ -1,12 +1,8 @@
 #include "../include/commands.h"
-#include "../include/network.h"
-#include "../include/room.h"
-#include "../include/client.h"
-#include <string.h>
-#include <pthread.h>
-#include <sys/socket.h>
+
 
 extern pthread_mutex_t global_lock;
+extern room_t rooms[MAX_ROOMS];
 
 void mark_invalid_message(client_t *c) {
     if (!c) return;
@@ -66,7 +62,18 @@ void handle_list(client_t *c) {
         return;
     }
     mark_valid_message(c);
-    send_room_list(c->fd);
+    int count = 0;
+    for (int i = 0; i < MAX_ROOMS; i++)
+        if (rooms[i].id != 0) count++;
+
+    send_line(c->fd, "R_LIST %d", count);
+    for (int i = 0; i < MAX_ROOMS; i++) {
+        if (rooms[i].id == 0) continue;
+        send_line(c->fd, "ROOM %d %s %d/2 %s",
+                  rooms[i].id, rooms[i].name,
+                  rooms[i].player_count,
+                  get_room_state_name(rooms[i].state));
+    }
 }
 
 void handle_create(client_t *c, char *args) {
@@ -429,6 +436,7 @@ void handle_reconnect(client_t *c, char* args) {
     unregister_client_without_lock(old_client);
     free(old_client);
 }
+
 
 void handle_line(client_t *c, char *line) {
     trim_crlf(line);

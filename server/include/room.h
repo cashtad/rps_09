@@ -2,12 +2,21 @@
 #define RPS_09_ROOM_H
 
 #include "server.h"
+#include "send_line.h"
+#include <string.h>
+#include <pthread.h>
 
 /**
  * @brief Initializes the global room table.
  * @details Input: none. Output: resets every room slot to the default state.
  */
 void init_rooms(void);
+/**
+ * @brief Checks every room for round expirations and clears completed sessions.
+ * @details Input: none. Output: room states are updated in place.
+ * @return void
+ */
+void check_rooms(void);
 /**
  * @brief Creates a new room with the provided name.
  * @param name Input room name string; output is a populated room entry.

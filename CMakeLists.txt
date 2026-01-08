@@ -8,7 +8,7 @@ add_executable(rps-09
         server/include/server.h
         server/src/client.c
         server/src/commands.c
-        server/src/network.c
+        server/src/send_line.c
         server/src/room.c
         server/src/game.c
         server/include/game.h)

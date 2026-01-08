@@ -1,12 +1,7 @@
-//
-// Created by leonid on 11/2/25.
-//
-
 #ifndef RPS_09_GAME_H
 #define RPS_09_GAME_H
 
 #include "server.h"
-#include "../include/network.h"
 
 /**
  * @brief Starts a best-of series for the supplied room.

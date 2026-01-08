@@ -56,9 +56,6 @@ void process_round_result(room_t *r) {
         }
     }
 
-    printf("Player1 <%s>: %d\n", r->player1->nick, r->score_p1);
-    printf("Player2 <%s>: %d\n", r->player2->nick, r->score_p2);
-
     // Check whether someone has already won
     if (r->score_p1 >= 5 || r->score_p2 >= 5) {
         end_game(r);
@@ -88,11 +85,8 @@ void end_game(room_t *r) {
 
 }
 
-
-
 void handle_round_timeout(room_t *r) {
     // Skip timeouts while the game is paused
-    printf("Handling timeout for moves\n");
     if (r->state == RM_PAUSED) {
         return;
     }
